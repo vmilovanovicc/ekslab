@@ -1,65 +1,32 @@
-# -----------------------------------------------------------------------
-# Global
-# -----------------------------------------------------------------------
-
-variable "aws_region" {
-  description = "AWS region to deploy into"
-  type        = string
-}
-
 variable "project" {
   description = "Project name used for resource naming and tagging"
   type        = string
-  default     = "ekslab"
 }
 
 variable "environment" {
   description = "Environment name used for resource naming and tagging"
   type        = string
-  default     = "lab"
 }
-
-# -----------------------------------------------------------------------
-# VPC
-# -----------------------------------------------------------------------
-
-variable "vpc_cidr" {
-  description = "CIDR block for the VPC"
-  type        = string
-  default     = "10.0.0.0/16"
-
-  validation {
-    condition     = can(cidrnetmask(var.vpc_cidr))
-    error_message = "vpc_cidr must be a valid CIDR block."
-  }
-}
-
-variable "enable_nat_gateway_per_az" {
-  description = "Deploy one NAT Gateway per AZ. Default: false (single NAT Gateway, cost-optimized)."
-  type        = bool
-  default     = false
-}
-
-variable "enable_flow_logs" {
-  description = "Enable VPC Flow Logs to CloudWatch. Default: false (cost-optimized)."
-  type        = bool
-  default     = false
-}
-
-# -----------------------------------------------------------------------
-# EKS
-# -----------------------------------------------------------------------
 
 variable "cluster_name" {
   description = "EKS cluster name"
   type        = string
-  default     = "ekslab-lab"
 }
 
 variable "cluster_version" {
   description = "Kubernetes version for the EKS cluster"
   type        = string
   default     = "1.35"
+}
+
+variable "vpc_id" {
+  description = "VPC ID where the cluster is deployed"
+  type        = string
+}
+
+variable "private_subnet_ids" {
+  description = "Private subnet IDs for the node group"
+  type        = list(string)
 }
 
 variable "allowed_cidrs" {
