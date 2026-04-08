@@ -22,6 +22,7 @@ variable "vpc_cidr" {
 variable "cluster_name" {
   description = "EKS cluster name, used for subnet tags required by the AWS load balancer controller"
   type        = string
+  default     = null
 }
 
 variable "enable_nat_gateway_per_az" {
