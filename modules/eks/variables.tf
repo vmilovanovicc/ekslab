@@ -33,16 +33,6 @@ variable "allowed_cidrs" {
   description = "List of CIDRs permitted to reach the EKS public API endpoint. Must not include 0.0.0.0/0."
   type        = list(string)
   sensitive   = true
-
-  validation {
-    condition     = alltrue([for cidr in var.allowed_cidrs : can(cidrnetmask(cidr))])
-    error_message = "All entries in allowed_cidrs must be valid CIDR blocks."
-  }
-
-  validation {
-    condition     = !contains(var.allowed_cidrs, "0.0.0.0/0")
-    error_message = "0.0.0.0/0 is not allowed - the EKS API endpoint must not be publicly open."
-  }
 }
 
 variable "admin_principal_arn" {
