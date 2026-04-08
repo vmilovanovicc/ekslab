@@ -55,6 +55,12 @@ resource "aws_eks_cluster" "main" {
     aws_cloudwatch_log_group.cluster,
   ]
 
+  timeouts {
+    create = "30m"
+    update = "30m"
+    delete = "30m"
+  }
+
   tags = local.common_tags
 }
 
@@ -159,6 +165,12 @@ resource "aws_eks_node_group" "default" {
     aws_iam_role_policy_attachment.node_policy,
     aws_iam_role_policy_attachment.node_ecr_policy,
   ]
+
+  timeouts {
+    create = "30m"
+    update = "30m"
+    delete = "30m"
+  }
 
   tags = local.common_tags
 }

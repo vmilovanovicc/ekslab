@@ -36,6 +36,16 @@ resource "aws_security_group_rule" "cluster_egress_to_nodes_443" {
   description              = "Control plane to node HTTPS"
 }
 
+resource "aws_security_group_rule" "cluster_ingress_from_nodes_443" {
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.cluster.id
+  source_security_group_id = aws_security_group.node.id
+  description              = "Node to control plane API server"
+}
+
 # -----------------------------------------------------------------------
 # Node Security Group
 #
