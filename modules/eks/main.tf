@@ -1,6 +1,10 @@
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
+data "aws_kms_key" "ebs" {
+  key_id = "alias/aws/ebs"
+}
+
 locals {
   common_tags = {
     Project     = var.project
@@ -105,8 +109,7 @@ resource "aws_launch_template" "node" {
       volume_size = 20
       volume_type = "gp3"
       encrypted   = true
-      # AWS-managed key (free). No key management overhead.
-      kms_key_id            = "alias/aws/ebs"
+      kms_key_id            = data.aws_kms_key.ebs.arn
       delete_on_termination = true
     }
   }
