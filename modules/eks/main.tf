@@ -102,9 +102,9 @@ resource "aws_launch_template" "node" {
     device_name = "/dev/xvda"
 
     ebs {
-      volume_size           = 20
-      volume_type           = "gp3"
-      encrypted             = true
+      volume_size = 20
+      volume_type = "gp3"
+      encrypted   = true
       # AWS-managed key (free). No key management overhead.
       kms_key_id            = "alias/aws/ebs"
       delete_on_termination = true
@@ -120,7 +120,7 @@ resource "aws_launch_template" "node" {
 
   tag_specifications {
     resource_type = "volume"
-    tags = local.common_tags
+    tags          = local.common_tags
   }
 
   tags = local.common_tags

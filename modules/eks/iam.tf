@@ -55,7 +55,7 @@ resource "aws_iam_role_policy_attachment" "node_policy" {
 }
 
 resource "aws_iam_role_policy_attachment" "node_ecr_policy" {
-  role       = aws_iam_role.node.name
+  role = aws_iam_role.node.name
   # PullOnly is more restrictive than ReadOnly - nodes only need to pull images,
   # not list or describe repositories.
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly"

@@ -12,10 +12,10 @@ module "vpc" {
 module "eks" {
   source = "./modules/eks"
 
-  project          = var.project
-  environment      = var.environment
-  cluster_name     = var.cluster_name
-  cluster_version  = var.cluster_version
+  project         = var.project
+  environment     = var.environment
+  cluster_name    = var.cluster_name
+  cluster_version = var.cluster_version
 
   vpc_id             = module.vpc.vpc_id
   private_subnet_ids = module.vpc.private_subnet_ids
