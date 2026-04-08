@@ -51,13 +51,13 @@ The following resources must exist **before** running the pipeline. They are cre
 
 3. **GitHub repository secrets** - set under Settings > Secrets and variables > Actions:
 
-   | Secret | Example value | Required from |
-   |---|---|---|
-   | `AWS_ROLE_ARN` | `arn:aws:iam::123456789012:role/ekslab-github-actions` | Phase 1 |
-   | `AWS_REGION` | `us-east-2` | Phase 1 |
-   | `TF_STATE_BUCKET` | `my-ekslab-tfstate` | Phase 1 |
-   | `TF_STATE_KEY` | `ekslab/terraform.tfstate` | Phase 1 |
-   | `TF_VAR_ALLOWED_CIDRS` | `["203.0.113.10/32"]` - valid JSON list | Phase 2 (EKS) |
+   | Secret | Example value |
+   |---|---|
+   | `AWS_ROLE_ARN` | `arn:aws:iam::123456789012:role/ekslab-github-actions` |
+   | `AWS_REGION` | `us-east-2` |
+   | `TF_STATE_BUCKET` | `my-ekslab-tfstate` |
+   | `TF_STATE_KEY` | `ekslab/terraform.tfstate` |
+   | `TF_VAR_ALLOWED_CIDRS` | `["203.0.113.10/32"]` - valid JSON list, required for EKS |
 
    `TF_VAR_ALLOWED_CIDRS` controls which IPs can reach the EKS API endpoint. Update it whenever your IP changes.
 
