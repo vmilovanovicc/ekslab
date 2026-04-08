@@ -1,0 +1,16 @@
+# Copy to terraform.tfvars and fill in your values.
+# Do NOT commit terraform.tfvars, it may contain sensitive values.
+
+aws_region = "us-east-2"
+
+project     = "ekslab"
+environment = "dev"
+cluster_name = "galaxy"
+
+vpc_cidr = "10.0.0.0/16"
+
+# Cost-optimized defaults,  change only if needed
+enable_nat_gateway_per_az = false
+enable_flow_logs          = false
+
+

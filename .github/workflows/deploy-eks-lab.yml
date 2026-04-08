@@ -1,0 +1,236 @@
+name: EKS Lab
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - apply
+          - destroy
+      confirm_destroy:
+        description: 'Type "destroy" to confirm destruction of all resources (required for destroy)'
+        required: false
+        type: string
+
+env:
+  TF_VERSION: '1.14.3'
+  TF_LOG: ''
+  TF_IN_AUTOMATION: 'true'
+
+concurrency:
+  group: terraform-eks-lab
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.actor == github.repository_owner && github.event.inputs.action == 'apply'
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-session-name: ekslab-plan-${{ github.run_id }}
+          mask-aws-account-id: true
+
+      - name: Configure Backend
+        env:
+          BACKEND_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          BACKEND_KEY: ${{ secrets.TF_STATE_KEY }}
+          BACKEND_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          cat > backend.hcl <<EOF
+          bucket       = "${BACKEND_BUCKET}"
+          key          = "${BACKEND_KEY}"
+          region       = "${BACKEND_REGION}"
+          use_lockfile = true
+          EOF
+
+      - name: Cache Terraform Providers
+        uses: actions/cache@v4
+        with:
+          path: .terraform/providers
+          key: terraform-providers-${{ hashFiles('.terraform.lock.hcl') }}
+
+      - name: Terraform Init
+        run: terraform init -backend-config=backend.hcl
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive -diff
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        env:
+          TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+        run: terraform plan -out=tfplan 2>&1 | tee plan.txt; exit ${PIPESTATUS[0]}
+
+      - name: Upload Plan Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: |
+            tfplan
+            plan.txt
+          retention-days: 1
+
+      - name: Plan Failed
+        if: failure()
+        run: echo "## Terraform Plan Failed - check the workflow logs for details." >> $GITHUB_STEP_SUMMARY
+
+  apply:
+    name: Terraform Apply
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-session-name: ekslab-apply-${{ github.run_id }}
+          mask-aws-account-id: true
+
+      - name: Configure Backend
+        env:
+          BACKEND_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          BACKEND_KEY: ${{ secrets.TF_STATE_KEY }}
+          BACKEND_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          cat > backend.hcl <<EOF
+          bucket       = "${BACKEND_BUCKET}"
+          key          = "${BACKEND_KEY}"
+          region       = "${BACKEND_REGION}"
+          use_lockfile = true
+          EOF
+
+      - name: Cache Terraform Providers
+        uses: actions/cache@v4
+        with:
+          path: .terraform/providers
+          key: terraform-providers-${{ hashFiles('.terraform.lock.hcl') }}
+
+      - name: Terraform Init
+        run: terraform init -backend-config=backend.hcl
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+
+      - name: Terraform Apply
+        env:
+          TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          terraform apply -auto-approve tfplan
+
+      - name: Apply Succeeded
+        run: echo "## EKS Lab deployed successfully. Destroy when done to avoid ongoing costs." >> $GITHUB_STEP_SUMMARY
+
+      - name: Apply Failed
+        if: failure()
+        run: echo "## Terraform Apply Failed - check the workflow logs for details." >> $GITHUB_STEP_SUMMARY
+
+  destroy:
+    name: Terraform Destroy
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: |
+      github.actor == github.repository_owner &&
+      github.event.inputs.action == 'destroy' &&
+      github.event.inputs.confirm_destroy == 'destroy'
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-session-name: ekslab-destroy-${{ github.run_id }}
+          mask-aws-account-id: true
+
+      - name: Configure Backend
+        env:
+          BACKEND_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          BACKEND_KEY: ${{ secrets.TF_STATE_KEY }}
+          BACKEND_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          cat > backend.hcl <<EOF
+          bucket       = "${BACKEND_BUCKET}"
+          key          = "${BACKEND_KEY}"
+          region       = "${BACKEND_REGION}"
+          use_lockfile = true
+          EOF
+
+      - name: Cache Terraform Providers
+        uses: actions/cache@v4
+        with:
+          path: .terraform/providers
+          key: terraform-providers-${{ hashFiles('.terraform.lock.hcl') }}
+
+      - name: Terraform Init
+        run: terraform init -backend-config=backend.hcl
+
+      - name: Terraform Destroy
+        env:
+          TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          terraform destroy -auto-approve
+
+      - name: Destroy Succeeded
+        run: echo "## EKS Lab destroyed. All ephemeral resources have been removed." >> $GITHUB_STEP_SUMMARY
+
+      - name: Destroy Failed
+        if: failure()
+        run: echo "## Terraform Destroy Failed - check the workflow logs for details." >> $GITHUB_STEP_SUMMARY
