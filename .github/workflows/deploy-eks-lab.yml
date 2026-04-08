@@ -39,15 +39,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6.1.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
@@ -68,7 +68,7 @@ jobs:
           EOF
 
       - name: Cache Terraform Providers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .terraform/providers
           key: terraform-providers-${{ hashFiles('.terraform.lock.hcl') }}
@@ -89,7 +89,7 @@ jobs:
 
       - name: Upload Plan Artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tfplan
           path: |
@@ -113,15 +113,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6.1.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
@@ -142,7 +142,7 @@ jobs:
           EOF
 
       - name: Cache Terraform Providers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .terraform/providers
           key: terraform-providers-${{ hashFiles('.terraform.lock.hcl') }}
@@ -151,7 +151,7 @@ jobs:
         run: terraform init -backend-config=backend.hcl
 
       - name: Download Plan Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: tfplan
 
@@ -184,15 +184,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6.1.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
@@ -213,7 +213,7 @@ jobs:
           EOF
 
       - name: Cache Terraform Providers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .terraform/providers
           key: terraform-providers-${{ hashFiles('.terraform.lock.hcl') }}
