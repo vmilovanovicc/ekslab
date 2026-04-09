@@ -86,6 +86,7 @@ jobs:
         env:
           TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
           TF_VAR_allowed_cidrs: ${{ secrets.TF_VAR_ALLOWED_CIDRS }}
+          TF_VAR_admin_principal_arn: ${{ secrets.TF_VAR_ADMIN_PRINCIPAL_ARN }}
         run: terraform plan -out=tfplan 2>&1 | tee plan.txt; exit ${PIPESTATUS[0]}
 
       - name: Upload Plan Artifact
@@ -160,6 +161,7 @@ jobs:
         env:
           TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
           TF_VAR_allowed_cidrs: ${{ secrets.TF_VAR_ALLOWED_CIDRS }}
+          TF_VAR_admin_principal_arn: ${{ secrets.TF_VAR_ADMIN_PRINCIPAL_ARN }}
         run: |
           set -euo pipefail
           terraform apply -auto-approve tfplan
@@ -227,6 +229,7 @@ jobs:
         env:
           TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
           TF_VAR_allowed_cidrs: ${{ secrets.TF_VAR_ALLOWED_CIDRS }}
+          TF_VAR_admin_principal_arn: ${{ secrets.TF_VAR_ADMIN_PRINCIPAL_ARN }}
         run: |
           set -euo pipefail
           terraform destroy -auto-approve
