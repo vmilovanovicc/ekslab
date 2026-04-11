@@ -179,8 +179,6 @@ resource "aws_eks_node_group" "default" {
 # Add-ons
 # -----------------------------------------------------------------------
 
-# VPC CNI with prefix delegation enabled for efficient IP allocation.
-# Uses IRSA so the CNI plugin has its own least-privilege IAM identity.
 resource "aws_eks_addon" "vpc_cni" {
   cluster_name             = aws_eks_cluster.main.name
   addon_name               = "vpc-cni"
@@ -193,7 +191,9 @@ resource "aws_eks_addon" "vpc_cni" {
     }
   })
 
-  depends_on = [aws_eks_node_group.default]
+  depends_on = [
+    aws_iam_role_policy_attachment.vpc_cni_policy,
+  ]
 
   tags = local.common_tags
 }
@@ -201,8 +201,6 @@ resource "aws_eks_addon" "vpc_cni" {
 resource "aws_eks_addon" "kube_proxy" {
   cluster_name = aws_eks_cluster.main.name
   addon_name   = "kube-proxy"
-
-  depends_on = [aws_eks_node_group.default]
 
   tags = local.common_tags
 }
