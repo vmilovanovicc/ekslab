@@ -164,7 +164,15 @@ jobs:
           TF_VAR_admin_principal_arn: ${{ secrets.TF_VAR_ADMIN_PRINCIPAL_ARN }}
         run: |
           set -euo pipefail
-          terraform apply -auto-approve tfplan
+          terraform apply -auto-approve tfplan 2>&1 | tee apply.txt; exit ${PIPESTATUS[0]}
+
+      - name: Upload Apply Log
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: apply-log
+          path: apply.txt
+          retention-days: 1
 
       - name: Apply Succeeded
         run: echo "## EKS Lab deployed successfully. Destroy when done to avoid ongoing costs." >> $GITHUB_STEP_SUMMARY
@@ -232,7 +240,15 @@ jobs:
           TF_VAR_admin_principal_arn: ${{ secrets.TF_VAR_ADMIN_PRINCIPAL_ARN }}
         run: |
           set -euo pipefail
-          terraform destroy -auto-approve
+          terraform destroy -auto-approve 2>&1 | tee destroy.txt; exit ${PIPESTATUS[0]}
+
+      - name: Upload Destroy Log
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: destroy-log
+          path: destroy.txt
+          retention-days: 1
 
       - name: Destroy Succeeded
         run: echo "## EKS Lab destroyed. All ephemeral resources have been removed." >> $GITHUB_STEP_SUMMARY
