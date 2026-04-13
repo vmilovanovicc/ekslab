@@ -76,6 +76,17 @@ variable "allowed_cidrs" {
     condition     = !contains(var.allowed_cidrs, "0.0.0.0/0")
     error_message = "0.0.0.0/0 is not allowed - the EKS API endpoint must not be publicly open."
   }
+
+  validation {
+    condition = alltrue([
+      for cidr in var.allowed_cidrs : !anytrue([
+        cidrcontains("10.0.0.0/8", cidr),
+        cidrcontains("172.16.0.0/12", cidr),
+        cidrcontains("192.168.0.0/16", cidr),
+      ])
+    ])
+    error_message = "Private IP ranges (10.x, 172.16-31.x, 192.168.x) are not allowed. Use your public IP from https://checkip.amazonaws.com."
+  }
 }
 
 variable "admin_principal_arn" {
