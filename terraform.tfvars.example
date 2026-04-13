@@ -9,8 +9,20 @@ cluster_name = "galaxy"
 
 vpc_cidr = "10.0.0.0/16"
 
-# Cost-optimized defaults,  change only if needed
+# Cost-optimized defaults, change only if needed
 enable_nat_gateway_per_az = false
 enable_flow_logs          = false
 
+cluster_version = "1.35"
 
+node_instance_type = "t3.medium"
+node_desired_size  = 1
+node_min_size      = 1
+node_max_size      = 3
+
+# Optional: IAM principal for permanent local kubectl access.
+# If omitted, only the identity that ran terraform apply gets cluster admin (via bootstrap).
+# admin_principal_arn = "arn:aws:iam::123456789012:user/your-username"
+
+# Sensitive values - pass via environment variables or GitHub secrets, not here.
+# export TF_VAR_allowed_cidrs='["YOUR_IP/32"]'

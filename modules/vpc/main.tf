@@ -43,11 +43,14 @@ resource "aws_subnet" "public" {
 
   map_public_ip_on_launch = false
 
-  tags = merge(local.common_tags, {
-    Name                                        = "${var.project}-${var.environment}-public-${count.index + 1}"
-    "kubernetes.io/role/elb"                    = "1"
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-  })
+  tags = merge(
+    local.common_tags,
+    {
+      Name                     = "${var.project}-${var.environment}-public-${count.index + 1}"
+      "kubernetes.io/role/elb" = "1"
+    },
+    var.cluster_name != null ? { "kubernetes.io/cluster/${var.cluster_name}" = "shared" } : {}
+  )
 }
 
 # Private subnets, EKS nodes run here.
@@ -57,11 +60,14 @@ resource "aws_subnet" "private" {
   cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index + 10)
   availability_zone = local.availability_zones[count.index]
 
-  tags = merge(local.common_tags, {
-    Name                                        = "${var.project}-${var.environment}-private-${count.index + 1}"
-    "kubernetes.io/role/internal-elb"           = "1"
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-  })
+  tags = merge(
+    local.common_tags,
+    {
+      Name                              = "${var.project}-${var.environment}-private-${count.index + 1}"
+      "kubernetes.io/role/internal-elb" = "1"
+    },
+    var.cluster_name != null ? { "kubernetes.io/cluster/${var.cluster_name}" = "shared" } : {}
+  )
 }
 
 # -----------------------------------------------------------------------
