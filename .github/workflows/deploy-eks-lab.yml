@@ -1,4 +1,4 @@
-name: EKS Lab
+name: Deployment
 
 on:
   workflow_dispatch:
