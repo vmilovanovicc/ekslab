@@ -80,9 +80,9 @@ variable "allowed_cidrs" {
   validation {
     condition = alltrue([
       for cidr in var.allowed_cidrs : !anytrue([
-        cidrcontains("10.0.0.0/8", cidr),
-        cidrcontains("172.16.0.0/12", cidr),
-        cidrcontains("192.168.0.0/16", cidr),
+        can(regex("^10\\.", cidr)),
+        can(regex("^172\\.(1[6-9]|2[0-9]|3[0-1])\\.", cidr)),
+        can(regex("^192\\.168\\.", cidr)),
       ])
     ])
     error_message = "Private IP ranges (10.x, 172.16-31.x, 192.168.x) are not allowed. Use your public IP from https://checkip.amazonaws.com."
