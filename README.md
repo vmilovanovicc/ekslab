@@ -61,7 +61,18 @@ outputs.tf
 
 The following resources must exist **before** running the pipeline. They are created once and never destroyed by Terraform:
 
-1. **S3 state bucket**: versioning enabled, native file locking support (Terraform >= 1.10).
+1. **S3 state bucket**: versioning enabled, default encryption enabled, and S3 Block Public Access enabled. The state file contains plaintext infrastructure details (IAM role ARNs, OIDC thumbprints, allow-listed CIDRs) regardless of any `sensitive = true` markers in Terraform variables, so these settings are not optional.
+
+   The [`bootstrap/`](bootstrap) directory contains a small, separate Terraform config that creates this bucket with the required settings baked in as code. It uses local state (it can't use the bucket it's creating as its own backend) and is run once per AWS account/region, by hand, before the main pipeline is used:
+
+   ```bash
+   cd bootstrap
+   cp terraform.tfvars.example terraform.tfvars   # edit state_bucket_name, aws_region
+   terraform init
+   terraform apply
+   ```
+
+   Use the resulting bucket name as `TF_STATE_BUCKET` below. Terraform >= 1.10 is required for the main pipeline's native S3 file locking (no DynamoDB table needed).
 
 2. **GitHub Actions OIDC IAM role**: allows the pipeline to authenticate to AWS without static credentials.
    - The AWS account must have an IAM OIDC identity provider for `token.actions.githubusercontent.com`.
@@ -78,10 +89,13 @@ The following resources must exist **before** running the pipeline. They are cre
    | `TF_STATE_KEY` | `ekslab/terraform.tfstate` |
    | `TF_VAR_ALLOWED_CIDRS` | `["203.0.113.10/32"]` (valid JSON list, required for EKS API access) |
    | `TF_VAR_ADMIN_PRINCIPAL_ARN` | `arn:aws:iam::123456789012:user/you` (optional, grants permanent local kubectl admin) |
+   | `TF_VAR_BUDGET_NOTIFICATION_EMAILS` | `["you@example.com"]` (valid JSON list, required unless `enable_budget_alarm = false`) |
 
    `TF_VAR_ALLOWED_CIDRS` controls which IPs can reach the EKS API endpoint. Update it whenever your public IP changes (check via `curl https://checkip.amazonaws.com`).
 
    `TF_VAR_ADMIN_PRINCIPAL_ARN` is optional. When set, an EKS access entry is created so that IAM principal always has cluster admin access, useful for local `kubectl` sessions independent of who ran `terraform apply`. Leave unset if not needed.
+
+   `TF_VAR_BUDGET_NOTIFICATION_EMAILS` is where AWS Budget alerts are sent (see [Cost Considerations](#cost-considerations)). Required because `enable_budget_alarm` defaults to `true`.
 
 4. **AWS CLI** (optional, for local runs) configured with credentials that have sufficient permissions.
 
@@ -154,3 +168,8 @@ Cost-saving defaults that can be changed via variables:
 | `enable_flow_logs` | `false` | No flow log storage costs |
 | `node_instance_type` | `t3.medium` | Configurable |
 | `node_desired_size` | `1` | Configurable (min 1, max 3) |
+
+### Guardrails Against Forgotten Costs
+
+- **AWS Budget alarm** on by default (`enable_budget_alarm = true`), that emails `TF_VAR_BUDGET_NOTIFICATION_EMAILS` when actual spend crosses 80% of `budget_limit_usd` (default $20/month) or forecasted spend is on track to exceed 100%. Near-zero cost to run.
+- **Lab TTL Check workflow** (`.github/workflows/lab-ttl-check.yml`): runs daily, checks the age of any EKS cluster tagged `Project = ekslab`, and opens (or updates) a GitHub issue if it has been running longer than `TTL_WARNING_HOURS` (default 8h). It only warns, it does not destroy anything automatically, you still need to trigger `destroy` yourself.

@@ -118,3 +118,30 @@ variable "node_max_size" {
   type        = number
   default     = 3
 }
+
+# -----------------------------------------------------------------------
+# Cost Guard
+# -----------------------------------------------------------------------
+
+variable "enable_budget_alarm" {
+  description = "Create an AWS Budget with email alerts as a safety net for forgotten/runaway resources. Requires budget_notification_emails."
+  type        = bool
+  default     = true
+}
+
+variable "budget_limit_usd" {
+  description = "Monthly budget threshold (USD) that triggers alert notifications."
+  type        = number
+  default     = 20
+}
+
+variable "budget_notification_emails" {
+  description = "Email addresses notified when the budget threshold is exceeded. Required when enable_budget_alarm is true."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = !var.enable_budget_alarm || length(var.budget_notification_emails) > 0
+    error_message = "budget_notification_emails must contain at least one email when enable_budget_alarm is true."
+  }
+}

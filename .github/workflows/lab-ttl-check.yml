@@ -1,0 +1,106 @@
+name: Lab TTL Check
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch: {}
+
+env:
+  TTL_WARNING_HOURS: '8'
+  ISSUE_TITLE: 'EKS Lab TTL Warning: cluster still running'
+
+permissions: {}
+
+jobs:
+  check-ttl:
+    name: Check Cluster Age
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      id-token: write
+      contents: read
+      issues: write
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v6.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-session-name: ekslab-ttl-check-${{ github.run_id }}
+          mask-aws-account-id: true
+
+      - name: Check for long-running clusters
+        id: check
+        run: |
+          set -euo pipefail
+
+          FOUND=false
+          REPORT=""
+
+          for name in $(aws eks list-clusters --query 'clusters' --output text); do
+            PROJECT_TAG=$(aws eks describe-cluster --name "$name" --query 'cluster.tags.Project' --output text)
+            if [ "$PROJECT_TAG" != "ekslab" ]; then
+              continue
+            fi
+
+            CREATED_AT=$(aws eks describe-cluster --name "$name" --query 'cluster.createdAt' --output text)
+            CREATED_EPOCH=$(date -d "$CREATED_AT" +%s)
+            NOW_EPOCH=$(date +%s)
+            AGE_HOURS=$(( (NOW_EPOCH - CREATED_EPOCH) / 3600 ))
+
+            echo "Cluster $name age: ${AGE_HOURS}h"
+
+            if [ "$AGE_HOURS" -ge "$TTL_WARNING_HOURS" ]; then
+              FOUND=true
+              REPORT="${REPORT}- \`${name}\` has been running for approximately ${AGE_HOURS}h (created ${CREATED_AT})\n"
+            fi
+          done
+
+          echo "found=${FOUND}" >> "$GITHUB_OUTPUT"
+          {
+            echo "report<<EOF"
+            echo -e "$REPORT"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open or update warning issue
+        if: steps.check.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT: ${{ steps.check.outputs.report }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(cat <<EOF
+          The following ekslab EKS cluster(s) have exceeded the TTL warning threshold (${TTL_WARNING_HOURS}h):
+
+          ${REPORT}
+          If this lab is no longer needed, run the **destroy** action in the Deployment workflow to avoid ongoing cost.
+
+          _This issue is updated automatically by the Lab TTL Check workflow and will stop being updated once the cluster is destroyed._
+          EOF
+          )
+
+          EXISTING=$(gh issue list --state open --search "\"${ISSUE_TITLE}\" in:title" --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "$ISSUE_TITLE" --body "$BODY"
+          fi
+
+      - name: Close stale warning issue
+        if: steps.check.outputs.found == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          EXISTING=$(gh issue list --state open --search "\"${ISSUE_TITLE}\" in:title" --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "No ekslab EKS cluster is currently running (or none exceed the TTL threshold). Closing this warning."
+            gh issue close "$EXISTING"
+          fi

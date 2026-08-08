@@ -40,3 +40,12 @@ output "kubeconfig_command" {
   description = "Run this to configure kubectl"
   value       = module.eks.kubeconfig_command
 }
+
+# -----------------------------------------------------------------------
+# Cost Guard
+# -----------------------------------------------------------------------
+
+output "budget_name" {
+  description = "Name of the AWS Budget monitoring this lab's spend, if enabled"
+  value       = var.enable_budget_alarm ? aws_budgets_budget.cost_guard[0].name : null
+}
