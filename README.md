@@ -61,7 +61,18 @@ outputs.tf
 
 The following resources must exist **before** running the pipeline. They are created once and never destroyed by Terraform:
 
-1. **S3 state bucket**: versioning enabled, native file locking support (Terraform >= 1.10).
+1. **S3 state bucket**: versioning enabled, default encryption enabled, and S3 Block Public Access enabled. The state file contains plaintext infrastructure details (IAM role ARNs, OIDC thumbprints, allow-listed CIDRs) regardless of any `sensitive = true` markers in Terraform variables, so these settings are not optional.
+
+   The [`bootstrap/`](bootstrap) directory contains a small, separate Terraform config that creates this bucket with the required settings baked in as code. It uses local state (it can't use the bucket it's creating as its own backend) and is run once per AWS account/region, by hand, before the main pipeline is used:
+
+   ```bash
+   cd bootstrap
+   cp terraform.tfvars.example terraform.tfvars   # edit state_bucket_name, aws_region
+   terraform init
+   terraform apply
+   ```
+
+   Use the resulting bucket name as `TF_STATE_BUCKET` below. Terraform >= 1.10 is required for the main pipeline's native S3 file locking (no DynamoDB table needed).
 
 2. **GitHub Actions OIDC IAM role**: allows the pipeline to authenticate to AWS without static credentials.
    - The AWS account must have an IAM OIDC identity provider for `token.actions.githubusercontent.com`.

@@ -1,0 +1,4 @@
+aws_region        = "eu-central-1"
+state_bucket_name = "my-ekslab-tfstate"
+project           = "ekslab"
+environment       = "lab"
