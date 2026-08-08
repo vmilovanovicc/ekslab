@@ -30,11 +30,14 @@ It is not a production system, but it is built with a focus on security: no hard
 **Terraform structure:**
 
 ```
+bootstrap/    # One-time, locally-run config that creates the S3 state bucket
+              # (own local state; can't use the bucket it creates as its own backend)
 modules/
   vpc/        # VPC, subnets, IGW, NAT GW, route tables, optional flow logs, flow log IAM
   eks/        # Cluster, node group, add-ons, security groups, OIDC, IRSA, IAM roles
 main.tf       # Module calls
 backend.tf    # S3 remote state
+budget.tf     # AWS Budget alarm (cost guardrail)
 providers.tf  # Terraform and AWS provider configuration
 variables.tf
 outputs.tf
@@ -78,6 +81,14 @@ The following resources must exist **before** running the pipeline. They are cre
    - The AWS account must have an IAM OIDC identity provider for `token.actions.githubusercontent.com`.
    - The role's trust policy must scope to your repository.
    - The role needs sufficient permissions to create/destroy all ephemeral resources (VPC, EKS, IAM roles, etc.).
+   - The role also needs `budgets:ViewBudget` and `budgets:ModifyBudget` (for `aws_budgets_budget` in `budget.tf`, unless `enable_budget_alarm = false`). AWS Budgets does not support resource-scoped ARNs for these actions, they must be granted with `"Resource": "*"`:
+     ```json
+     {
+       "Effect": "Allow",
+       "Action": ["budgets:ViewBudget", "budgets:ModifyBudget"],
+       "Resource": "*"
+     }
+     ```
 
 3. **GitHub repository secrets** set under Settings > Secrets and variables > Actions:
 
