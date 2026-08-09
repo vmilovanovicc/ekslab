@@ -19,7 +19,7 @@ It is not a production system, but it is built with a focus on security: no hard
 
 | Component | Details |
 |---|---|
-| **VPC** | 2 AZs, public + private subnets, single NAT Gateway (cost-optimized) |
+| **VPC** | 2 AZs (configurable via `az_count`), public + private subnets, single NAT Gateway (cost-optimized) |
 | **EKS Cluster** | Kubernetes 1.36 (default), API auth mode, public + private endpoint access, control plane logs (api/audit/authenticator/controllerManager/scheduler), Secrets envelope-encrypted with a dedicated KMS CMK |
 | **Node Group** | Single managed node group ("default") in private subnets, AL2023 AMI, IMDSv2 enforced, EBS encrypted with aws/ebs CMK |
 | **Add-ons** | vpc-cni (IRSA + prefix delegation), kube-proxy, coredns |
@@ -54,7 +54,7 @@ outputs.tf
 - **Least-privilege node role**: nodes get `AmazonEKSWorkerNodePolicy` and `AmazonEC2ContainerRegistryPullOnly` (pull-only, not read-only).
 - **Encrypted node storage**: EBS volumes are gp3, encrypted with the aws/ebs managed key, deleted on termination.
 - **Secrets envelope encryption**: Kubernetes `Secret` objects are envelope-encrypted with a dedicated customer-managed KMS key (`encryption_config`), rotated automatically, not just AWS's default etcd storage encryption.
-- **Cluster logging**: api, audit, authenticator, controllerManager, and scheduler logs shipped to CloudWatch with 7-day retention.
+- **Cluster logging**: api, audit, authenticator, controllerManager, and scheduler logs shipped to CloudWatch with 7-day retention (configurable via `log_retention_days`).
 - **Custom security groups**: explicit rules for control-plane-to-node and node-to-node traffic; no catch-all ingress on the cluster or node security groups (only unrestricted egress from nodes for image pulls and AWS API access).
 
 ---
@@ -183,7 +183,7 @@ This lab is designed to minimize cost. Resources only incur charges while runnin
 | EKS control plane | ~$0.10/hour | Main fixed cost |
 | NAT Gateway | ~$0.045/hour + data | Single NAT by default |
 | EC2 node (`t3.medium`) | ~$0.047/hour | 1 node by default |
-| EBS (20 GB gp3) | ~$0.002/hour | Encrypted with aws/ebs (free) |
+| EBS (20 GB gp3, configurable via `node_volume_size`) | ~$0.002/hour | Encrypted with aws/ebs (free) |
 | KMS key (Secrets encryption) | ~$1/month | Prorated to lab uptime; used for `encryption_config` |
 | CloudWatch logs | Minimal | 7-day retention |
 | VPC Flow Logs | Off by default | Enable with `enable_flow_logs = true` |

@@ -20,6 +20,11 @@ node_desired_size  = 1
 node_min_size      = 1
 node_max_size      = 3
 
+# Optional tuning knobs, defaults shown below.
+# az_count            = 2
+# log_retention_days  = 7
+# node_volume_size    = 20
+
 # Optional: IAM principal for permanent local kubectl access.
 # If omitted, only the identity that ran terraform apply gets cluster admin (via bootstrap).
 # admin_principal_arn = "arn:aws:iam::123456789012:user/your-username"

@@ -64,3 +64,15 @@ variable "node_max_size" {
   type        = number
   default     = 3
 }
+
+variable "node_volume_size" {
+  description = "Root EBS volume size (GB) for EKS nodes"
+  type        = number
+  default     = 20
+}
+
+variable "log_retention_days" {
+  description = "CloudWatch Logs retention period (in days) for the EKS cluster log group"
+  type        = number
+  default     = 7
+}

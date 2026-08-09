@@ -34,7 +34,7 @@ resource "aws_kms_alias" "eks_secrets" {
 
 resource "aws_cloudwatch_log_group" "cluster" {
   name              = "/aws/eks/${var.cluster_name}/cluster"
-  retention_in_days = 7
+  retention_in_days = var.log_retention_days
 }
 
 # -----------------------------------------------------------------------
@@ -129,7 +129,7 @@ resource "aws_launch_template" "node" {
     device_name = "/dev/xvda"
 
     ebs {
-      volume_size           = 20
+      volume_size           = var.node_volume_size
       volume_type           = "gp3"
       encrypted             = true
       kms_key_id            = data.aws_kms_key.ebs.arn

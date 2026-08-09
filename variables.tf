@@ -46,6 +46,18 @@ variable "enable_flow_logs" {
   default     = false
 }
 
+variable "az_count" {
+  description = "Number of availability zones to spread subnets across"
+  type        = number
+  default     = 2
+}
+
+variable "log_retention_days" {
+  description = "CloudWatch Logs retention period (in days), applied to VPC Flow Logs and the EKS cluster log group"
+  type        = number
+  default     = 7
+}
+
 # -----------------------------------------------------------------------
 # EKS
 # -----------------------------------------------------------------------
@@ -117,6 +129,12 @@ variable "node_max_size" {
   description = "Maximum number of EKS nodes"
   type        = number
   default     = 3
+}
+
+variable "node_volume_size" {
+  description = "Root EBS volume size (GB) for EKS nodes"
+  type        = number
+  default     = 20
 }
 
 # -----------------------------------------------------------------------

@@ -1,11 +1,11 @@
-# Discover available AZs in the current region and use the first 2.
+# Discover available AZs in the current region and use the first var.az_count.
 # Filters to only "available" state to exclude opted-out or restricted zones.
 data "aws_availability_zones" "available" {
   state = "available"
 }
 
 locals {
-  availability_zones = slice(data.aws_availability_zones.available.names, 0, 2)
+  availability_zones = slice(data.aws_availability_zones.available.names, 0, var.az_count)
   az_count           = length(local.availability_zones)
 }
 
@@ -155,7 +155,7 @@ resource "aws_route_table_association" "private" {
 resource "aws_cloudwatch_log_group" "flow_logs" {
   count             = var.enable_flow_logs ? 1 : 0
   name              = "/aws/vpc/${var.project}-${var.environment}/flow-logs"
-  retention_in_days = 7
+  retention_in_days = var.log_retention_days
 }
 
 resource "aws_flow_log" "main" {

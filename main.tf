@@ -7,6 +7,8 @@ module "vpc" {
   cluster_name              = var.cluster_name
   enable_nat_gateway_per_az = var.enable_nat_gateway_per_az
   enable_flow_logs          = var.enable_flow_logs
+  az_count                  = var.az_count
+  log_retention_days        = var.log_retention_days
 }
 
 module "eks" {
@@ -27,4 +29,7 @@ module "eks" {
   node_desired_size  = var.node_desired_size
   node_min_size      = var.node_min_size
   node_max_size      = var.node_max_size
+  node_volume_size   = var.node_volume_size
+
+  log_retention_days = var.log_retention_days
 }
