@@ -22,7 +22,7 @@ It is not a production system, but it is built with a focus on security: no hard
 | **VPC** | 2 AZs (configurable via `az_count`), public + private subnets, single NAT Gateway (cost-optimized) |
 | **EKS Cluster** | Kubernetes 1.36 (default), API auth mode, public + private endpoint access, control plane logs (api/audit/authenticator/controllerManager/scheduler), Secrets envelope-encrypted with a dedicated KMS CMK |
 | **Node Group** | Single managed node group ("default") in private subnets, AL2023 AMI, IMDSv2 enforced, EBS encrypted with aws/ebs CMK |
-| **Add-ons** | vpc-cni (IRSA + prefix delegation), kube-proxy, coredns |
+| **Add-ons** | vpc-cni (IRSA + prefix delegation), kube-proxy, coredns; version resolved to latest-compatible at apply time by default, pinnable via `*_addon_version` variables |
 | **IRSA** | OIDC provider provisioned; vpc-cni uses IRSA (node role has no CNI permissions) |
 | **State Backend** | S3 with native file locking (Terraform >= 1.10, no DynamoDB required) |
 | **CI/CD** | GitHub Actions with OIDC, no static AWS credentials anywhere |

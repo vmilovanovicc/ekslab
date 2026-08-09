@@ -137,6 +137,24 @@ variable "node_volume_size" {
   default     = 20
 }
 
+variable "vpc_cni_addon_version" {
+  description = "Version of the vpc-cni EKS add-on to install. Null resolves to the latest version compatible with cluster_version at apply time."
+  type        = string
+  default     = null
+}
+
+variable "kube_proxy_addon_version" {
+  description = "Version of the kube-proxy EKS add-on to install. Null resolves to the latest version compatible with cluster_version at apply time."
+  type        = string
+  default     = null
+}
+
+variable "coredns_addon_version" {
+  description = "Version of the coredns EKS add-on to install. Null resolves to the latest version compatible with cluster_version at apply time."
+  type        = string
+  default     = null
+}
+
 # -----------------------------------------------------------------------
 # Cost Guard
 # -----------------------------------------------------------------------

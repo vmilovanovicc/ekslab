@@ -25,6 +25,11 @@ node_max_size      = 3
 # log_retention_days  = 7
 # node_volume_size    = 20
 
+# Optional: pin EKS add-on versions instead of resolving the latest at apply time.
+# vpc_cni_addon_version    = "v1.19.0-eksbuild.1"
+# kube_proxy_addon_version = "v1.31.0-eksbuild.2"
+# coredns_addon_version    = "v1.11.3-eksbuild.1"
+
 # Optional: IAM principal for permanent local kubectl access.
 # If omitted, only the identity that ran terraform apply gets cluster admin (via bootstrap).
 # admin_principal_arn = "arn:aws:iam::123456789012:user/your-username"

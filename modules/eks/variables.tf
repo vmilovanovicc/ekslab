@@ -76,3 +76,21 @@ variable "log_retention_days" {
   type        = number
   default     = 7
 }
+
+variable "vpc_cni_addon_version" {
+  description = "Version of the vpc-cni EKS add-on to install. Null resolves to the latest version compatible with cluster_version at apply time."
+  type        = string
+  default     = null
+}
+
+variable "kube_proxy_addon_version" {
+  description = "Version of the kube-proxy EKS add-on to install. Null resolves to the latest version compatible with cluster_version at apply time."
+  type        = string
+  default     = null
+}
+
+variable "coredns_addon_version" {
+  description = "Version of the coredns EKS add-on to install. Null resolves to the latest version compatible with cluster_version at apply time."
+  type        = string
+  default     = null
+}

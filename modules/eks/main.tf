@@ -191,11 +191,34 @@ resource "aws_eks_node_group" "default" {
 
 # -----------------------------------------------------------------------
 # Add-ons
+#
+# addon_version defaults to the latest version compatible with
+# cluster_version (resolved via data.aws_eks_addon_version) unless pinned
+# explicitly via the *_addon_version variables.
 # -----------------------------------------------------------------------
+
+data "aws_eks_addon_version" "vpc_cni" {
+  addon_name         = "vpc-cni"
+  kubernetes_version = aws_eks_cluster.main.version
+  most_recent        = true
+}
+
+data "aws_eks_addon_version" "kube_proxy" {
+  addon_name         = "kube-proxy"
+  kubernetes_version = aws_eks_cluster.main.version
+  most_recent        = true
+}
+
+data "aws_eks_addon_version" "coredns" {
+  addon_name         = "coredns"
+  kubernetes_version = aws_eks_cluster.main.version
+  most_recent        = true
+}
 
 resource "aws_eks_addon" "vpc_cni" {
   cluster_name             = aws_eks_cluster.main.name
   addon_name               = "vpc-cni"
+  addon_version            = coalesce(var.vpc_cni_addon_version, data.aws_eks_addon_version.vpc_cni.version)
   service_account_role_arn = aws_iam_role.vpc_cni.arn
 
   configuration_values = jsonencode({
@@ -211,13 +234,15 @@ resource "aws_eks_addon" "vpc_cni" {
 }
 
 resource "aws_eks_addon" "kube_proxy" {
-  cluster_name = aws_eks_cluster.main.name
-  addon_name   = "kube-proxy"
+  cluster_name  = aws_eks_cluster.main.name
+  addon_name    = "kube-proxy"
+  addon_version = coalesce(var.kube_proxy_addon_version, data.aws_eks_addon_version.kube_proxy.version)
 }
 
 resource "aws_eks_addon" "coredns" {
-  cluster_name = aws_eks_cluster.main.name
-  addon_name   = "coredns"
+  cluster_name  = aws_eks_cluster.main.name
+  addon_name    = "coredns"
+  addon_version = coalesce(var.coredns_addon_version, data.aws_eks_addon_version.coredns.version)
 
   depends_on = [aws_eks_node_group.default]
 }

@@ -31,5 +31,8 @@ module "eks" {
   node_max_size      = var.node_max_size
   node_volume_size   = var.node_volume_size
 
-  log_retention_days = var.log_retention_days
+  log_retention_days       = var.log_retention_days
+  vpc_cni_addon_version    = var.vpc_cni_addon_version
+  kube_proxy_addon_version = var.kube_proxy_addon_version
+  coredns_addon_version    = var.coredns_addon_version
 }
