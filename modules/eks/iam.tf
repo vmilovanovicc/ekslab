@@ -17,8 +17,6 @@ data "aws_iam_policy_document" "cluster_assume_role" {
 resource "aws_iam_role" "cluster" {
   name               = "${var.project}-${var.environment}-eks-cluster"
   assume_role_policy = data.aws_iam_policy_document.cluster_assume_role.json
-
-  tags = local.common_tags
 }
 
 resource "aws_iam_role_policy_attachment" "cluster_policy" {
@@ -66,8 +64,6 @@ data "aws_iam_policy_document" "node_assume_role" {
 resource "aws_iam_role" "node" {
   name               = "${var.project}-${var.environment}-eks-node"
   assume_role_policy = data.aws_iam_policy_document.node_assume_role.json
-
-  tags = local.common_tags
 }
 
 resource "aws_iam_role_policy_attachment" "node_policy" {
@@ -97,8 +93,6 @@ resource "aws_iam_openid_connect_provider" "eks" {
   url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [data.tls_certificate.eks_oidc.certificates[0].sha1_fingerprint]
-
-  tags = local.common_tags
 }
 
 # -----------------------------------------------------------------------
@@ -132,8 +126,6 @@ data "aws_iam_policy_document" "vpc_cni_assume_role" {
 resource "aws_iam_role" "vpc_cni" {
   name               = "${var.project}-${var.environment}-vpc-cni"
   assume_role_policy = data.aws_iam_policy_document.vpc_cni_assume_role.json
-
-  tags = local.common_tags
 }
 
 resource "aws_iam_role_policy_attachment" "vpc_cni_policy" {

@@ -21,8 +21,6 @@ resource "aws_kms_key" "eks_secrets" {
   description             = "Envelope encryption key for ${var.cluster_name} Kubernetes Secrets"
   deletion_window_in_days = 7
   enable_key_rotation     = true
-
-  tags = local.common_tags
 }
 
 resource "aws_kms_alias" "eks_secrets" {
@@ -37,8 +35,6 @@ resource "aws_kms_alias" "eks_secrets" {
 resource "aws_cloudwatch_log_group" "cluster" {
   name              = "/aws/eks/${var.cluster_name}/cluster"
   retention_in_days = 7
-
-  tags = local.common_tags
 }
 
 # -----------------------------------------------------------------------
@@ -85,8 +81,6 @@ resource "aws_eks_cluster" "main" {
     update = "30m"
     delete = "30m"
   }
-
-  tags = local.common_tags
 }
 
 # -----------------------------------------------------------------------
@@ -102,8 +96,6 @@ resource "aws_eks_access_entry" "admin" {
   cluster_name  = aws_eks_cluster.main.name
   principal_arn = var.admin_principal_arn
   type          = "STANDARD"
-
-  tags = local.common_tags
 }
 
 resource "aws_eks_access_policy_association" "admin" {
@@ -157,8 +149,6 @@ resource "aws_launch_template" "node" {
     tags          = local.common_tags
   }
 
-  tags = local.common_tags
-
   lifecycle {
     create_before_destroy = true
   }
@@ -197,8 +187,6 @@ resource "aws_eks_node_group" "default" {
     update = "30m"
     delete = "30m"
   }
-
-  tags = local.common_tags
 }
 
 # -----------------------------------------------------------------------
@@ -220,15 +208,11 @@ resource "aws_eks_addon" "vpc_cni" {
   depends_on = [
     aws_iam_role_policy_attachment.vpc_cni_policy,
   ]
-
-  tags = local.common_tags
 }
 
 resource "aws_eks_addon" "kube_proxy" {
   cluster_name = aws_eks_cluster.main.name
   addon_name   = "kube-proxy"
-
-  tags = local.common_tags
 }
 
 resource "aws_eks_addon" "coredns" {
@@ -236,6 +220,4 @@ resource "aws_eks_addon" "coredns" {
   addon_name   = "coredns"
 
   depends_on = [aws_eks_node_group.default]
-
-  tags = local.common_tags
 }
