@@ -20,7 +20,7 @@ It is not a production system, but it is built with a focus on security: no hard
 | Component | Details |
 |---|---|
 | **VPC** | 2 AZs, public + private subnets, single NAT Gateway (cost-optimized) |
-| **EKS Cluster** | Kubernetes 1.36 (default), API auth mode, public + private endpoint access, control plane logs (api/audit/authenticator), Secrets envelope-encrypted with a dedicated KMS CMK |
+| **EKS Cluster** | Kubernetes 1.36 (default), API auth mode, public + private endpoint access, control plane logs (api/audit/authenticator/controllerManager/scheduler), Secrets envelope-encrypted with a dedicated KMS CMK |
 | **Node Group** | Single managed node group ("default") in private subnets, IMDSv2 enforced, EBS encrypted with aws/ebs CMK |
 | **Add-ons** | vpc-cni (IRSA + prefix delegation), kube-proxy, coredns |
 | **IRSA** | OIDC provider provisioned; vpc-cni uses IRSA (node role has no CNI permissions) |
@@ -54,7 +54,7 @@ outputs.tf
 - **Least-privilege node role**: nodes get `AmazonEKSWorkerNodePolicy` and `AmazonEC2ContainerRegistryPullOnly` (pull-only, not read-only).
 - **Encrypted node storage**: EBS volumes are gp3, encrypted with the aws/ebs managed key, deleted on termination.
 - **Secrets envelope encryption**: Kubernetes `Secret` objects are envelope-encrypted with a dedicated customer-managed KMS key (`encryption_config`), rotated automatically, not just AWS's default etcd storage encryption.
-- **Cluster logging**: api, audit, and authenticator logs shipped to CloudWatch with 7-day retention.
+- **Cluster logging**: api, audit, authenticator, controllerManager, and scheduler logs shipped to CloudWatch with 7-day retention.
 - **Custom security groups**: explicit rules for control-plane-to-node and node-to-node traffic; no catch-all ingress on the cluster or node security groups (only unrestricted egress from nodes for image pulls and AWS API access).
 
 ---
