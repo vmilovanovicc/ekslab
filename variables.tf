@@ -137,6 +137,17 @@ variable "node_volume_size" {
   default     = 20
 }
 
+variable "node_capacity_type" {
+  description = "EKS node group capacity type. SPOT cuts EC2 cost ~60-70% with interruption risk, a non-issue for a disposable lab; use ON_DEMAND if interruptions are unacceptable."
+  type        = string
+  default     = "SPOT"
+
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.node_capacity_type)
+    error_message = "node_capacity_type must be either \"ON_DEMAND\" or \"SPOT\"."
+  }
+}
+
 variable "vpc_cni_addon_version" {
   description = "Version of the vpc-cni EKS add-on to install. Null resolves to the latest version compatible with cluster_version at apply time."
   type        = string

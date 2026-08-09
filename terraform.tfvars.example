@@ -27,6 +27,7 @@ node_max_size      = 3
 # az_count            = 2
 # log_retention_days  = 7
 # node_volume_size    = 20
+# node_capacity_type  = "SPOT" # or "ON_DEMAND" if interruptions are unacceptable
 
 # Optional: pin EKS add-on versions instead of resolving the latest at apply time.
 # vpc_cni_addon_version    = "v1.19.0-eksbuild.1"

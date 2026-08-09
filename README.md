@@ -21,7 +21,7 @@ It is not a production system, but it is built with a focus on security: no hard
 |---|---|
 | **VPC** | 2 AZs (configurable via `az_count`), public + private subnets, single NAT Gateway (cost-optimized) |
 | **EKS Cluster** | Kubernetes 1.36 (default), API auth mode, public + private endpoint access, control plane logs (api/audit/authenticator/controllerManager/scheduler), Secrets envelope-encrypted with a dedicated KMS CMK |
-| **Node Group** | Single managed node group ("default") in private subnets, AL2023 AMI, IMDSv2 enforced, EBS encrypted with aws/ebs CMK |
+| **Node Group** | Single managed node group ("default") in private subnets, AL2023 AMI, Spot capacity by default (configurable via `node_capacity_type`), IMDSv2 enforced, EBS encrypted with aws/ebs CMK |
 | **Add-ons** | vpc-cni (IRSA + prefix delegation), kube-proxy, coredns; version resolved to latest-compatible at apply time by default, pinnable via `*_addon_version` variables |
 | **IRSA** | OIDC provider provisioned; vpc-cni uses IRSA (node role has no CNI permissions) |
 | **State Backend** | S3 with native file locking (Terraform >= 1.10, no DynamoDB required) |
@@ -56,6 +56,17 @@ outputs.tf
 - **Secrets envelope encryption**: Kubernetes `Secret` objects are envelope-encrypted with a dedicated customer-managed KMS key (`encryption_config`), rotated automatically, not just AWS's default etcd storage encryption.
 - **Cluster logging**: api, audit, authenticator, controllerManager, and scheduler logs shipped to CloudWatch with 7-day retention (configurable via `log_retention_days`).
 - **Custom security groups**: explicit rules for control-plane-to-node and node-to-node traffic; no catch-all ingress on the cluster or node security groups (only unrestricted egress from nodes for image pulls and AWS API access).
+
+---
+
+## Known Limitations
+
+These are deliberate, accepted trade-offs, not bugs, kept here so anyone operating this repo unsupervised can make an informed call without reading all the Terraform first:
+
+- **Node egress is fully open** (`0.0.0.0/0`, all protocols/ports). Nodes need outbound access for image pulls and AWS API calls; a compromised pod can reach any destination on any port, not just HTTPS/DNS. Tightening to 443/53/123 is possible but adds real maintenance burden (breaks on any add-on that needs another port) for a lab whose whole purpose is disposable experimentation.
+- **vpc-cni's IRSA role carries the full AWS-managed `AmazonEKS_CNI_Policy`**, which grants ENI/IP management actions that AWS's own policy can't scope down further. IRSA (not attaching CNI permissions to the node role) is already the correct mitigation and is in place; the wildcard shape is inherent to AWS's policy, not something this repo can tighten.
+- **Third-party GitHub Actions are pinned by mutable tag** (`@v5`, `@v6.1.0`, etc.), not by commit SHA. A compromised or re-tagged action would run with `id-token: write`, able to mint AWS credentials for `AWS_ROLE_ARN`. Low likelihood, high severity; pin by commit SHA if this repo is shared beyond a single trusted owner.
+- **The Lab TTL Check workflow only warns**, it does not auto-destroy. If a cluster runs past `TTL_WARNING_HOURS`, you get a GitHub issue, not an automatic teardown, you still have to trigger `destroy` yourself.
 
 ---
 
@@ -120,6 +131,7 @@ The following resources must exist **before** running the pipeline. They are cre
    | `TF_VAR_ALLOWED_CIDRS` | `["203.0.113.10/32"]` (valid JSON list, required for EKS API access) |
    | `TF_VAR_ADMIN_PRINCIPAL_ARN` | `arn:aws:iam::123456789012:user/you` (optional, grants permanent local kubectl admin) |
    | `TF_VAR_BUDGET_NOTIFICATION_EMAILS` | `["you@example.com"]` (valid JSON list, required unless `enable_budget_alarm = false`) |
+   | `TF_PLAN_PASSPHRASE` | a long random string, e.g. `openssl rand -base64 32` |
 
    `TF_VAR_ALLOWED_CIDRS` controls which IPs can reach the EKS API endpoint. Update it whenever your public IP changes (check via `curl https://checkip.amazonaws.com`).
 
@@ -127,7 +139,11 @@ The following resources must exist **before** running the pipeline. They are cre
 
    `TF_VAR_BUDGET_NOTIFICATION_EMAILS` is where AWS Budget alerts are sent (see [Cost Considerations](#cost-considerations)). Required because `enable_budget_alarm` defaults to `true`.
 
-4. **AWS CLI** (optional, for local runs) configured with credentials that have sufficient permissions.
+   `TF_PLAN_PASSPHRASE` symmetrically encrypts the binary `tfplan` artifact (which, unlike the redacted `plan.txt` console output, contains full unredacted attribute values) before it's uploaded between the `plan` and `apply` jobs, so it isn't readable by anyone with mere Actions-artifact read access on this repo during its 1-day retention window.
+
+4. **`aws-deploy` GitHub Environment**: the `apply` and `destroy` jobs target this environment (`.github/workflows/deploy-eks-lab.yml`). Create it under Settings > Environments > New environment, named exactly `aws-deploy`, and add at least one required reviewer. Without this, GitHub auto-creates the environment unprotected on first run and the extra approval gate silently does nothing. Environment-scoped secrets are optional, the repository secrets above remain accessible to environment-scoped jobs.
+
+5. **AWS CLI** (optional, for local runs) configured with credentials that have sufficient permissions. For local runs, copy [`terraform.tfvars.example`](terraform.tfvars.example) to `terraform.tfvars` and fill in the non-secret values (`project`, `environment`, `cluster_version`, node sizing, etc.); pass sensitive values like `allowed_cidrs` via `TF_VAR_*` environment variables instead, per the note at the bottom of that file. `terraform.tfvars.example` is kept in sync with the variable defaults in `variables.tf`, so if you see it drift, that's a bug.
 
 **Required tool versions:**
 - Terraform >= 1.10 (workflow pins 1.14.3)
@@ -170,6 +186,8 @@ The workflow (`.github/workflows/deploy-eks-lab.yml`) is triggered manually via 
 
 **Destroy** runs as a single job. It requires `action = destroy`, the actor to be the repository owner, and `confirm_destroy` typed as exactly `destroy`.
 
+The `apply` and `destroy` jobs both target the `aws-deploy` GitHub Environment, in addition to the `github.actor == github.repository_owner` check. This costs nothing beyond one-time setup and gives a real approval UI plus an audit trail if this repo is ever shared with a second collaborator or the owner's account is compromised. See the Prerequisites section below to configure it.
+
 A concurrency group (`terraform-eks-lab`) serializes runs so plan, apply, and destroy never execute against the state at the same time.
 
 Terraform provider binaries are cached between runs keyed on `.terraform.lock.hcl`.
@@ -184,7 +202,7 @@ This lab is designed to minimize cost. Resources only incur charges while runnin
 |---|---|---|
 | EKS control plane | ~$0.10/hour | Main fixed cost |
 | NAT Gateway | ~$0.045/hour + data | Single NAT by default |
-| EC2 node (`t3.medium`) | ~$0.047/hour | 1 node by default |
+| EC2 node (`t3.medium`) | ~$0.047/hour on-demand, ~60-70% less on Spot | 1 node by default, Spot capacity by default (`node_capacity_type`) |
 | EBS (20 GB gp3, configurable via `node_volume_size`) | ~$0.002/hour | Encrypted with aws/ebs (free) |
 | KMS key (Secrets encryption) | ~$1/month | Prorated to lab uptime; used for `encryption_config` |
 | CloudWatch logs | Minimal | 7-day retention |

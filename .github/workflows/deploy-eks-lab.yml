@@ -103,13 +103,26 @@ jobs:
             exit 1
           fi
 
+      # The tfplan binary (unlike plan.txt) contains full unredacted attribute
+      # values for every planned resource. Encrypt it before upload so it isn't
+      # readable by anyone with mere Actions-artifact read access on this repo.
+      - name: Encrypt Plan Artifact
+        if: steps.plan.outputs.exitcode == '2'
+        env:
+          TF_PLAN_PASSPHRASE: ${{ secrets.TF_PLAN_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          gpg --batch --yes --symmetric --cipher-algo AES256 \
+            --passphrase "$TF_PLAN_PASSPHRASE" -o tfplan.enc tfplan
+          rm -f tfplan
+
       - name: Upload Plan Artifact
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: tfplan
           path: |
-            tfplan
+            tfplan.enc
             plan.txt
           retention-days: 1
 
@@ -127,6 +140,7 @@ jobs:
     if: needs.plan.outputs.has_changes == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    environment: aws-deploy
 
     permissions:
       id-token: write
@@ -176,6 +190,14 @@ jobs:
         with:
           name: tfplan
 
+      - name: Decrypt Plan Artifact
+        env:
+          TF_PLAN_PASSPHRASE: ${{ secrets.TF_PLAN_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          gpg --batch --yes --decrypt --passphrase "$TF_PLAN_PASSPHRASE" -o tfplan tfplan.enc
+          rm -f tfplan.enc
+
       - name: Terraform Apply
         env:
           TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
@@ -205,6 +227,7 @@ jobs:
     name: Terraform Destroy
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    environment: aws-deploy
     if: |
       github.actor == github.repository_owner &&
       github.event.inputs.action == 'destroy' &&

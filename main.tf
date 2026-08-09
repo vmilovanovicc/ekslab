@@ -36,6 +36,7 @@ module "eks" {
   node_min_size      = var.node_min_size
   node_max_size      = var.node_max_size
   node_volume_size   = var.node_volume_size
+  node_capacity_type = var.node_capacity_type
 
   log_retention_days       = var.log_retention_days
   vpc_cni_addon_version    = var.vpc_cni_addon_version
