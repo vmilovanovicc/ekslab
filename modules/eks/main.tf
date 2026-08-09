@@ -14,6 +14,23 @@ locals {
 }
 
 # -----------------------------------------------------------------------
+# Secrets Encryption (KMS)
+# -----------------------------------------------------------------------
+
+resource "aws_kms_key" "eks_secrets" {
+  description             = "Envelope encryption key for ${var.cluster_name} Kubernetes Secrets"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+
+  tags = local.common_tags
+}
+
+resource "aws_kms_alias" "eks_secrets" {
+  name          = "alias/${var.project}-${var.environment}-eks-secrets"
+  target_key_id = aws_kms_key.eks_secrets.key_id
+}
+
+# -----------------------------------------------------------------------
 # CloudWatch Log Group
 # -----------------------------------------------------------------------
 
@@ -35,6 +52,13 @@ resource "aws_eks_cluster" "main" {
 
   enabled_cluster_log_types = ["api", "audit", "authenticator"]
 
+  encryption_config {
+    provider {
+      key_arn = aws_kms_key.eks_secrets.arn
+    }
+    resources = ["secrets"]
+  }
+
   vpc_config {
     subnet_ids              = var.private_subnet_ids
     security_group_ids      = [aws_security_group.cluster.id]
@@ -52,6 +76,7 @@ resource "aws_eks_cluster" "main" {
 
   depends_on = [
     aws_iam_role_policy_attachment.cluster_policy,
+    aws_iam_role_policy.cluster_kms,
     aws_cloudwatch_log_group.cluster,
   ]
 

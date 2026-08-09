@@ -20,7 +20,7 @@ It is not a production system, but it is built with a focus on security: no hard
 | Component | Details |
 |---|---|
 | **VPC** | 2 AZs, public + private subnets, single NAT Gateway (cost-optimized) |
-| **EKS Cluster** | Kubernetes 1.36 (default), API auth mode, public + private endpoint access, control plane logs (api/audit/authenticator) |
+| **EKS Cluster** | Kubernetes 1.36 (default), API auth mode, public + private endpoint access, control plane logs (api/audit/authenticator), Secrets envelope-encrypted with a dedicated KMS CMK |
 | **Node Group** | Single managed node group ("default") in private subnets, IMDSv2 enforced, EBS encrypted with aws/ebs CMK |
 | **Add-ons** | vpc-cni (IRSA + prefix delegation), kube-proxy, coredns |
 | **IRSA** | OIDC provider provisioned; vpc-cni uses IRSA (node role has no CNI permissions) |
@@ -53,6 +53,7 @@ outputs.tf
 - **IRSA for vpc-cni**: node role does not carry CNI permissions; the aws-node service account assumes a scoped IRSA role instead.
 - **Least-privilege node role**: nodes get `AmazonEKSWorkerNodePolicy` and `AmazonEC2ContainerRegistryPullOnly` (pull-only, not read-only).
 - **Encrypted node storage**: EBS volumes are gp3, encrypted with the aws/ebs managed key, deleted on termination.
+- **Secrets envelope encryption**: Kubernetes `Secret` objects are envelope-encrypted with a dedicated customer-managed KMS key (`encryption_config`), rotated automatically, not just AWS's default etcd storage encryption.
 - **Cluster logging**: api, audit, and authenticator logs shipped to CloudWatch with 7-day retention.
 - **Custom security groups**: explicit rules for control-plane-to-node and node-to-node traffic; no catch-all ingress on the cluster or node security groups (only unrestricted egress from nodes for image pulls and AWS API access).
 
@@ -165,6 +166,7 @@ This lab is designed to minimize cost. Resources only incur charges while runnin
 | NAT Gateway | ~$0.045/hour + data | Single NAT by default |
 | EC2 node (`t3.medium`) | ~$0.047/hour | 1 node by default |
 | EBS (20 GB gp3) | ~$0.002/hour | Encrypted with aws/ebs (free) |
+| KMS key (Secrets encryption) | ~$1/month | Prorated to lab uptime; used for `encryption_config` |
 | CloudWatch logs | Minimal | 7-day retention |
 | VPC Flow Logs | Off by default | Enable with `enable_flow_logs = true` |
 | CloudTrail | Not included | Excluded to avoid S3 storage accumulation |

@@ -26,6 +26,27 @@ resource "aws_iam_role_policy_attachment" "cluster_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
+# Grants the cluster role access to the Secrets envelope-encryption KMS key.
+# Not covered by AmazonEKSClusterPolicy, required for encryption_config to work.
+data "aws_iam_policy_document" "cluster_kms" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "kms:Encrypt",
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:CreateGrant",
+    ]
+    resources = [aws_kms_key.eks_secrets.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "cluster_kms" {
+  name   = "${var.project}-${var.environment}-eks-cluster-kms"
+  role   = aws_iam_role.cluster.id
+  policy = data.aws_iam_policy_document.cluster_kms.json
+}
+
 # -----------------------------------------------------------------------
 # Node Group Role
 # -----------------------------------------------------------------------

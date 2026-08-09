@@ -28,3 +28,8 @@ output "kubeconfig_command" {
   description = "AWS CLI command to update kubeconfig for this cluster"
   value       = "aws eks update-kubeconfig --region ${data.aws_region.current.name} --name ${aws_eks_cluster.main.name}"
 }
+
+output "secrets_kms_key_arn" {
+  description = "ARN of the KMS key used for Kubernetes Secrets envelope encryption"
+  value       = aws_kms_key.eks_secrets.arn
+}
