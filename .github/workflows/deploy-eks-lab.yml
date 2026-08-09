@@ -29,13 +29,16 @@ permissions: {}
 jobs:
   plan:
     name: Terraform Plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     if: github.actor == github.repository_owner && github.event.inputs.action == 'apply'
 
     permissions:
       id-token: write
       contents: read
+
+    outputs:
+      has_changes: ${{ steps.plan.outputs.exitcode == '2' }}
 
     steps:
       - name: Checkout
@@ -83,12 +86,22 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
+        id: plan
         env:
           TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
           TF_VAR_allowed_cidrs: ${{ secrets.TF_VAR_ALLOWED_CIDRS }}
           TF_VAR_admin_principal_arn: ${{ secrets.TF_VAR_ADMIN_PRINCIPAL_ARN }}
           TF_VAR_budget_notification_emails: ${{ secrets.TF_VAR_BUDGET_NOTIFICATION_EMAILS }}
-        run: terraform plan -out=tfplan 2>&1 | tee plan.txt; exit ${PIPESTATUS[0]}
+        run: |
+          set -uo pipefail
+          # -detailed-exitcode: 0 = no changes, 1 = error, 2 = changes present.
+          # Not using -e here since exit code 2 is an expected, non-error outcome.
+          terraform plan -detailed-exitcode -out=tfplan 2>&1 | tee plan.txt
+          exit_code=${PIPESTATUS[0]}
+          echo "exitcode=${exit_code}" >> "$GITHUB_OUTPUT"
+          if [ "$exit_code" -eq 1 ]; then
+            exit 1
+          fi
 
       - name: Upload Plan Artifact
         if: always()
@@ -104,10 +117,15 @@ jobs:
         if: failure()
         run: echo "## Terraform Plan Failed - check the workflow logs for details." >> $GITHUB_STEP_SUMMARY
 
+      - name: No Changes
+        if: steps.plan.outputs.exitcode == '0'
+        run: echo "## Terraform Plan - no changes, apply skipped." >> $GITHUB_STEP_SUMMARY
+
   apply:
     name: Terraform Apply
     needs: plan
-    runs-on: ubuntu-latest
+    if: needs.plan.outputs.has_changes == 'true'
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     permissions:
@@ -185,7 +203,7 @@ jobs:
 
   destroy:
     name: Terraform Destroy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     if: |
       github.actor == github.repository_owner &&

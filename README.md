@@ -163,8 +163,8 @@ The workflow (`.github/workflows/deploy-eks-lab.yml`) is triggered manually via 
 
 **Apply** runs as two sequential jobs, gated to the repository owner:
 
-1. **Plan**: inits, checks formatting, validates, plans, and uploads the plan artifact (1-day retention). Only runs when `action = apply` and the actor is the repository owner.
-2. **Apply**: downloads the plan artifact and applies it with `-auto-approve`. Runs after `plan` succeeds, so it is implicitly skipped whenever `plan` is skipped or fails.
+1. **Plan**: inits, checks formatting, validates, plans (via `-detailed-exitcode`), and uploads the plan artifact (1-day retention). Only runs when `action = apply` and the actor is the repository owner.
+2. **Apply**: downloads the plan artifact and applies it with `-auto-approve`. Runs after `plan` succeeds *and* the plan reported real changes, so it is skipped whenever `plan` is skipped, fails, or is a no-op.
 
 **Destroy** runs as a single job. It requires `action = destroy`, the actor to be the repository owner, and `confirm_destroy` typed as exactly `destroy`.
 
