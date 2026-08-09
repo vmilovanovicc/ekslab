@@ -89,8 +89,6 @@ resource "aws_iam_role_policy_attachment" "node_ecr_policy" {
 # EKS OIDC Provider (for IRSA)
 # -----------------------------------------------------------------------
 
-data "aws_partition" "current" {}
-
 data "tls_certificate" "eks_oidc" {
   url = aws_eks_cluster.main.identity[0].oidc[0].issuer
 }
