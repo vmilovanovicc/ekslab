@@ -80,7 +80,25 @@ The following resources must exist **before** running the pipeline. They are cre
 
 2. **GitHub Actions OIDC IAM role**: allows the pipeline to authenticate to AWS without static credentials.
    - The AWS account must have an IAM OIDC identity provider for `token.actions.githubusercontent.com`.
-   - The role's trust policy must scope to your repository.
+   - The role's trust policy must scope to your repository, and specifically to the branch that runs this workflow, not just the repository as a whole. A common mistake is a trust condition like `repo:owner/repo:*`, which lets *any* branch, PR, or fork-triggered run in the repo assume the role. Since this role can create/destroy your entire AWS footprint, scope it as tightly as your usage allows, for example:
+     ```json
+     {
+       "Effect": "Allow",
+       "Principal": {
+         "Federated": "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+       },
+       "Action": "sts:AssumeRoleWithWebIdentity",
+       "Condition": {
+         "StringEquals": {
+           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+         },
+         "StringLike": {
+           "token.actions.githubusercontent.com:sub": "repo:owner/ekslab:ref:refs/heads/main"
+         }
+       }
+     }
+     ```
+     Replace `owner/ekslab` with your actual `owner/repo`, and the `ref:refs/heads/main` value with the specific branch (or a GitHub Environment via `repo:owner/ekslab:environment:<name>`) you actually dispatch this workflow from.
    - The role needs sufficient permissions to create/destroy all ephemeral resources (VPC, EKS, IAM roles, etc.).
    - The role also needs `budgets:ViewBudget` and `budgets:ModifyBudget` (for `aws_budgets_budget` in `budget.tf`, unless `enable_budget_alarm = false`). AWS Budgets does not support resource-scoped ARNs for these actions, they must be granted with `"Resource": "*"`:
      ```json
