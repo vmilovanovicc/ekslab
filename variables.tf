@@ -63,9 +63,9 @@ variable "log_retention_days" {
 # -----------------------------------------------------------------------
 
 variable "cluster_name" {
-  description = "EKS cluster name"
+  description = "EKS cluster name. Defaults to \"<project>-<environment>\" when null, keeping it in sync with the rest of the resource naming."
   type        = string
-  default     = "ekslab-lab"
+  default     = null
 }
 
 variable "cluster_version" {

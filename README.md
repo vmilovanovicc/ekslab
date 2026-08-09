@@ -131,15 +131,17 @@ The following resources must exist **before** running the pipeline. They are cre
 
 **Required tool versions:**
 - Terraform >= 1.10 (workflow pins 1.14.3)
-- AWS provider ~> 5.0
+- AWS provider ~> 5.100 (patch releases only; committed `.terraform.lock.hcl` pins the exact version)
 
 ### Connecting to the Cluster
 
 After a successful apply, run the `kubeconfig_command` output to configure kubectl:
 
 ```bash
-aws eks update-kubeconfig --region <region> --name ekslab-lab
+aws eks update-kubeconfig --region <region> --name <cluster_name>
 ```
+
+`<cluster_name>` defaults to `"<project>-<environment>"` (e.g. `ekslab-dev`) unless `cluster_name` is set explicitly.
 
 Whoever ran `terraform apply` gets cluster admin automatically (`bootstrap_cluster_creator_admin_permissions`). If `TF_VAR_ADMIN_PRINCIPAL_ARN` was set, that principal also has permanent admin access regardless of who applied.
 

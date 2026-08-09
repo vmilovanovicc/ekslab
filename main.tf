@@ -1,10 +1,16 @@
+locals {
+  # Falls back to "<project>-<environment>" when cluster_name isn't set explicitly,
+  # so it can't silently drift out of sync with the rest of the resource naming.
+  cluster_name = coalesce(var.cluster_name, "${var.project}-${var.environment}")
+}
+
 module "vpc" {
   source = "./modules/vpc"
 
   project                   = var.project
   environment               = var.environment
   vpc_cidr                  = var.vpc_cidr
-  cluster_name              = var.cluster_name
+  cluster_name              = local.cluster_name
   enable_nat_gateway_per_az = var.enable_nat_gateway_per_az
   enable_flow_logs          = var.enable_flow_logs
   az_count                  = var.az_count
@@ -16,7 +22,7 @@ module "eks" {
 
   project         = var.project
   environment     = var.environment
-  cluster_name    = var.cluster_name
+  cluster_name    = local.cluster_name
   cluster_version = var.cluster_version
 
   vpc_id             = module.vpc.vpc_id
