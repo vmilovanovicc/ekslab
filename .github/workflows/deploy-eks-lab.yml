@@ -37,9 +37,6 @@ jobs:
       id-token: write
       contents: read
 
-    outputs:
-      has_changes: ${{ steps.plan.outputs.exitcode == '2' }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -104,7 +101,6 @@ jobs:
           fi
 
       - name: Encrypt Plan Artifact
-        if: steps.plan.outputs.exitcode == '2'
         env:
           TF_PLAN_PASSPHRASE: ${{ secrets.TF_PLAN_PASSPHRASE }}
         run: |
@@ -127,14 +123,9 @@ jobs:
         if: failure()
         run: echo "## Terraform Plan Failed - check the workflow logs for details." >> $GITHUB_STEP_SUMMARY
 
-      - name: No Changes
-        if: steps.plan.outputs.exitcode == '0'
-        run: echo "## Terraform Plan - no changes, apply skipped." >> $GITHUB_STEP_SUMMARY
-
   apply:
     name: Terraform Apply
     needs: plan
-    if: needs.plan.outputs.has_changes == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: aws-deploy
