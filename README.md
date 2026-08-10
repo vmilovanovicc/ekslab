@@ -122,24 +122,16 @@ The following resources must exist **before** running the pipeline. They are cre
 
 3. **GitHub repository secrets** set under Settings > Secrets and variables > Actions:
 
-   | Secret | Example value |
-   |---|---|
-   | `AWS_ROLE_ARN` | `arn:aws:iam::123456789012:role/ekslab-github-actions` |
-   | `AWS_REGION` | `us-east-2` |
-   | `TF_STATE_BUCKET` | `my-ekslab-tfstate` |
-   | `TF_STATE_KEY` | `ekslab/terraform.tfstate` |
-   | `TF_VAR_ALLOWED_CIDRS` | `["203.0.113.10/32"]` (valid JSON list, required for EKS API access) |
-   | `TF_VAR_ADMIN_PRINCIPAL_ARN` | `arn:aws:iam::123456789012:user/you` (optional, grants permanent local kubectl admin) |
-   | `TF_VAR_BUDGET_NOTIFICATION_EMAILS` | `["you@example.com"]` (valid JSON list, required unless `enable_budget_alarm = false`) |
-   | `TF_PLAN_PASSPHRASE` | a long random string, e.g. `openssl rand -base64 32` |
-
-   `TF_VAR_ALLOWED_CIDRS` controls which IPs can reach the EKS API endpoint. Update it whenever your public IP changes (check via `curl https://checkip.amazonaws.com`).
-
-   `TF_VAR_ADMIN_PRINCIPAL_ARN` is optional. When set, an EKS access entry is created so that IAM principal always has cluster admin access, useful for local `kubectl` sessions independent of who ran `terraform apply`. Leave unset if not needed.
-
-   `TF_VAR_BUDGET_NOTIFICATION_EMAILS` is where AWS Budget alerts are sent (see [Cost Considerations](#cost-considerations)). Required because `enable_budget_alarm` defaults to `true`.
-
-   `TF_PLAN_PASSPHRASE` symmetrically encrypts both the binary `tfplan` artifact and the human-readable `plan.txt` before they're uploaded between the `plan` and `apply` jobs. This repo is public, so both the job log and any Actions artifact are downloadable by anyone with a GitHub account; the plan is never printed to the job log, and both files stay AES256-encrypted for their 1-day retention window.
+   | Secret | Example value | Notes |
+   |---|---|---|
+   | `AWS_ROLE_ARN` | `arn:aws:iam::123456789012:role/ekslab-github-actions` | |
+   | `AWS_REGION` | `us-east-2` | |
+   | `TF_STATE_BUCKET` | `my-ekslab-tfstate` | |
+   | `TF_STATE_KEY` | `ekslab/terraform.tfstate` | |
+   | `TF_VAR_ALLOWED_CIDRS` | `["203.0.113.10/32"]` | your public IP, update if it changes |
+   | `TF_VAR_ADMIN_PRINCIPAL_ARN` | `arn:aws:iam::123456789012:user/you` | optional, grants local kubectl admin |
+   | `TF_VAR_BUDGET_NOTIFICATION_EMAILS` | `["you@example.com"]` | required unless `enable_budget_alarm = false` |
+   | `TF_PLAN_PASSPHRASE` | `openssl rand -base64 32` | encrypts the `tfplan` artifact |
 
 4. **`aws-deploy` GitHub Environment**: the `apply` and `destroy` jobs target this environment (`.github/workflows/deploy-eks-lab.yml`). Create it under Settings > Environments > New environment, named exactly `aws-deploy`, and add at least one required reviewer. Without this, GitHub auto-creates the environment unprotected on first run and the extra approval gate silently does nothing. Environment-scoped secrets are optional, the repository secrets above remain accessible to environment-scoped jobs.
 

@@ -95,41 +95,32 @@ jobs:
         run: |
           set -u
           set +e
-          terraform plan -detailed-exitcode -out=tfplan > plan.txt 2>&1
-          exit_code=$?
+          terraform plan -detailed-exitcode -out=tfplan 2>&1 | tee plan.txt
+          exit_code=${PIPESTATUS[0]}
           set -e
           echo "exitcode=${exit_code}" >> "$GITHUB_OUTPUT"
           if [ "$exit_code" -eq 1 ]; then
-            cat plan.txt
             exit 1
           fi
-          grep '^Plan:' plan.txt || true
 
-      # Encrypt  before upload so
-      # they aren't readable by anyone downloading the public artifact.
-      - name: Encrypt Plan Artifacts
-        if: steps.plan.outputs.exitcode == '0' || steps.plan.outputs.exitcode == '2'
+      - name: Encrypt Plan Artifact
+        if: steps.plan.outputs.exitcode == '2'
         env:
           TF_PLAN_PASSPHRASE: ${{ secrets.TF_PLAN_PASSPHRASE }}
         run: |
           set -euo pipefail
           gpg --batch --yes --symmetric --cipher-algo AES256 \
-            --passphrase "$TF_PLAN_PASSPHRASE" -o plan.txt.enc plan.txt
-          rm -f plan.txt
-          if [ -f tfplan ]; then
-            gpg --batch --yes --symmetric --cipher-algo AES256 \
-              --passphrase "$TF_PLAN_PASSPHRASE" -o tfplan.enc tfplan
-            rm -f tfplan
-          fi
+            --passphrase "$TF_PLAN_PASSPHRASE" -o tfplan.enc tfplan
+          rm -f tfplan
 
       - name: Upload Plan Artifact
-        if: steps.plan.outputs.exitcode == '0' || steps.plan.outputs.exitcode == '2'
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: tfplan
           path: |
             tfplan.enc
-            plan.txt.enc
+            plan.txt
           retention-days: 1
 
       - name: Plan Failed
