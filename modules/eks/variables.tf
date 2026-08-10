@@ -39,6 +39,7 @@ variable "admin_principal_arn" {
   description = "IAM principal ARN (user or role) granted permanent cluster admin access for local kubectl use. Set to null to skip."
   type        = string
   default     = null
+  sensitive   = true
 }
 
 variable "node_instance_type" {

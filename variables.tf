@@ -186,6 +186,7 @@ variable "budget_notification_emails" {
   description = "Email addresses notified when the budget threshold is exceeded. Required when enable_budget_alarm is true."
   type        = list(string)
   default     = []
+  sensitive   = true
 
   validation {
     condition     = !var.enable_budget_alarm || length(var.budget_notification_emails) > 0

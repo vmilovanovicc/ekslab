@@ -93,37 +93,43 @@ jobs:
           TF_VAR_admin_principal_arn: ${{ secrets.TF_VAR_ADMIN_PRINCIPAL_ARN }}
           TF_VAR_budget_notification_emails: ${{ secrets.TF_VAR_BUDGET_NOTIFICATION_EMAILS }}
         run: |
-          set -uo pipefail
-          # -detailed-exitcode: 0 = no changes, 1 = error, 2 = changes present.
-          # Not using -e here since exit code 2 is an expected, non-error outcome.
-          terraform plan -detailed-exitcode -out=tfplan 2>&1 | tee plan.txt
-          exit_code=${PIPESTATUS[0]}
+          set -u
+          set +e
+          terraform plan -detailed-exitcode -out=tfplan > plan.txt 2>&1
+          exit_code=$?
+          set -e
           echo "exitcode=${exit_code}" >> "$GITHUB_OUTPUT"
           if [ "$exit_code" -eq 1 ]; then
+            cat plan.txt
             exit 1
           fi
+          grep '^Plan:' plan.txt || true
 
-      # The tfplan binary (unlike plan.txt) contains full unredacted attribute
-      # values for every planned resource. Encrypt it before upload so it isn't
-      # readable by anyone with mere Actions-artifact read access on this repo.
-      - name: Encrypt Plan Artifact
-        if: steps.plan.outputs.exitcode == '2'
+      # Encrypt  before upload so
+      # they aren't readable by anyone downloading the public artifact.
+      - name: Encrypt Plan Artifacts
+        if: steps.plan.outputs.exitcode == '0' || steps.plan.outputs.exitcode == '2'
         env:
           TF_PLAN_PASSPHRASE: ${{ secrets.TF_PLAN_PASSPHRASE }}
         run: |
           set -euo pipefail
           gpg --batch --yes --symmetric --cipher-algo AES256 \
-            --passphrase "$TF_PLAN_PASSPHRASE" -o tfplan.enc tfplan
-          rm -f tfplan
+            --passphrase "$TF_PLAN_PASSPHRASE" -o plan.txt.enc plan.txt
+          rm -f plan.txt
+          if [ -f tfplan ]; then
+            gpg --batch --yes --symmetric --cipher-algo AES256 \
+              --passphrase "$TF_PLAN_PASSPHRASE" -o tfplan.enc tfplan
+            rm -f tfplan
+          fi
 
       - name: Upload Plan Artifact
-        if: always()
+        if: steps.plan.outputs.exitcode == '0' || steps.plan.outputs.exitcode == '2'
         uses: actions/upload-artifact@v6
         with:
           name: tfplan
           path: |
             tfplan.enc
-            plan.txt
+            plan.txt.enc
           retention-days: 1
 
       - name: Plan Failed

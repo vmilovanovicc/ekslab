@@ -139,7 +139,7 @@ The following resources must exist **before** running the pipeline. They are cre
 
    `TF_VAR_BUDGET_NOTIFICATION_EMAILS` is where AWS Budget alerts are sent (see [Cost Considerations](#cost-considerations)). Required because `enable_budget_alarm` defaults to `true`.
 
-   `TF_PLAN_PASSPHRASE` symmetrically encrypts the binary `tfplan` artifact (which, unlike the redacted `plan.txt` console output, contains full unredacted attribute values) before it's uploaded between the `plan` and `apply` jobs, so it isn't readable by anyone with mere Actions-artifact read access on this repo during its 1-day retention window.
+   `TF_PLAN_PASSPHRASE` symmetrically encrypts both the binary `tfplan` artifact and the human-readable `plan.txt` before they're uploaded between the `plan` and `apply` jobs. This repo is public, so both the job log and any Actions artifact are downloadable by anyone with a GitHub account; the plan is never printed to the job log, and both files stay AES256-encrypted for their 1-day retention window.
 
 4. **`aws-deploy` GitHub Environment**: the `apply` and `destroy` jobs target this environment (`.github/workflows/deploy-eks-lab.yml`). Create it under Settings > Environments > New environment, named exactly `aws-deploy`, and add at least one required reviewer. Without this, GitHub auto-creates the environment unprotected on first run and the extra approval gate silently does nothing. Environment-scoped secrets are optional, the repository secrets above remain accessible to environment-scoped jobs.
 
