@@ -45,7 +45,7 @@ outputs.tf
 
 ---
 
-## Security Highlights
+## Security Controls
 
 - **No static credentials**: GitHub Actions authenticates via OIDC. The plan and destroy jobs also check `github.actor == github.repository_owner`, and apply only runs after a successful plan, so only the repository owner can drive the pipeline.
 - **Restricted API endpoint**: EKS public API locked to specific CIDRs via `allowed_cidrs`. `0.0.0.0/0` and private ranges (10.x, 172.16-31.x, 192.168.x) are rejected by input validation.
@@ -110,15 +110,15 @@ The following resources must exist **before** running the pipeline. They are cre
      }
      ```
      Replace `owner/ekslab` with your actual `owner/repo`, and the `ref:refs/heads/main` value with the specific branch (or a GitHub Environment via `repo:owner/ekslab:environment:<name>`) you actually dispatch this workflow from.
-   - The role needs sufficient permissions to create/destroy all ephemeral resources (VPC, EKS, IAM roles, etc.).
-   - The role also needs `budgets:ViewBudget` and `budgets:ModifyBudget` (for `aws_budgets_budget` in `budget.tf`, unless `enable_budget_alarm = false`). AWS Budgets does not support resource-scoped ARNs for these actions, they must be granted with `"Resource": "*"`:
-     ```json
-     {
-       "Effect": "Allow",
-       "Action": ["budgets:ViewBudget", "budgets:ModifyBudget"],
-       "Resource": "*"
-     }
-     ```
+   - The role needs permissions to create, read, update, tag, and destroy resources in the services this repo's Terraform actually provisions:
+     - **EC2**: VPC, subnets, route tables, internet gateway, NAT gateways, EIPs, security groups, launch templates, flow logs
+     - **EKS**: cluster, node group, add-ons, access entries
+     - **IAM**: roles, role policies, policy attachments, the OIDC identity provider
+     - **KMS**: keys and aliases (Secrets and EBS envelope encryption)
+     - **CloudWatch Logs**: log groups (control plane logging)
+     - **Budgets**: `budgets:ViewBudget` / `budgets:ModifyBudget` for `aws_budgets_budget` in `budget.tf`, unless `enable_budget_alarm = false`. AWS Budgets does not support resource-scoped ARNs for these actions, they must be granted with `"Resource": "*"`.
+     - **S3**: read/write on the state bucket and object created in step 1 (for the Terraform backend)
+     - **STS**: `sts:AssumeRoleWithWebIdentity` (the trust policy above) and `sts:GetCallerIdentity`
 
 3. **GitHub repository secrets** set under Settings > Secrets and variables > Actions:
 
@@ -135,7 +135,7 @@ The following resources must exist **before** running the pipeline. They are cre
 
 4. **`aws-deploy` GitHub Environment**: the `apply` and `destroy` jobs target this environment (`.github/workflows/deploy-eks-lab.yml`). Create it under Settings > Environments > New environment, named exactly `aws-deploy`, and add at least one required reviewer. Without this, GitHub auto-creates the environment unprotected on first run and the extra approval gate silently does nothing. Environment-scoped secrets are optional, the repository secrets above remain accessible to environment-scoped jobs.
 
-5. **AWS CLI** (optional, for local runs) configured with credentials that have sufficient permissions. For local runs, copy [`terraform.tfvars.example`](terraform.tfvars.example) to `terraform.tfvars` and fill in the non-secret values (`project`, `environment`, `cluster_version`, node sizing, etc.); pass sensitive values like `allowed_cidrs` via `TF_VAR_*` environment variables instead, per the note at the bottom of that file. `terraform.tfvars.example` is kept in sync with the variable defaults in `variables.tf`, so if you see it drift, that's a bug.
+5. **AWS CLI** (optional, for local runs) configured with credentials that have sufficient permissions.
 
 **Required tool versions:**
 - Terraform >= 1.10 (workflow pins 1.14.3)
@@ -173,7 +173,7 @@ The workflow (`.github/workflows/deploy-eks-lab.yml`) is triggered manually via 
 
 **Apply** runs as two sequential jobs, gated to the repository owner:
 
-1. **Plan**: inits, checks formatting, validates, plans (via `-detailed-exitcode`), and uploads the plan artifact (1-day retention). Only runs when `action = apply` and the actor is the repository owner.
+1. **Plan**: inits, checks formatting, validates, plans, and uploads the plan artifact (1-day retention). Only runs when `action = apply` and the actor is the repository owner.
 2. **Apply**: downloads the plan artifact and applies it with `-auto-approve`. Runs after `plan` succeeds *and* the plan reported real changes, so it is skipped whenever `plan` is skipped, fails, or is a no-op.
 
 **Destroy** runs as a single job. It requires `action = destroy`, the actor to be the repository owner, and `confirm_destroy` typed as exactly `destroy`.
@@ -194,14 +194,14 @@ This lab is designed to minimize cost. Resources only incur charges while runnin
 |---|---|---|
 | EKS control plane | ~$0.10/hour | Main fixed cost |
 | NAT Gateway | ~$0.045/hour + data | Single NAT by default |
-| EC2 node (`t3.medium`) | ~$0.047/hour on-demand, ~60-70% less on Spot | 1 node by default, Spot capacity by default (`node_capacity_type`) |
+| EC2 node (`t3.medium`) | ~$0.0416/hour on-demand, ~60-70% less on Spot | 1 node by default, Spot capacity by default (`node_capacity_type`) |
 | EBS (20 GB gp3, configurable via `node_volume_size`) | ~$0.002/hour | Encrypted with aws/ebs (free) |
 | KMS key (Secrets encryption) | ~$1/month | Prorated to lab uptime; used for `encryption_config` |
 | CloudWatch logs | Minimal | 7-day retention |
 | VPC Flow Logs | Off by default | Enable with `enable_flow_logs = true` |
 | CloudTrail | Not included | Excluded to avoid S3 storage accumulation |
 
-**Estimated total: ~$0.20-0.25/hour** while running. Destroy after each session.
+**Estimated total: ~$0.16-0.19/hour** while running (Spot node by default at the low end, on-demand at the high end). Destroy after each session.
 
 Cost-saving defaults that can be changed via variables:
 
