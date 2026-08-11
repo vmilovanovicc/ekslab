@@ -39,6 +39,7 @@ variable "admin_principal_arn" {
   description = "IAM principal ARN (user or role) granted permanent cluster admin access for local kubectl use. Set to null to skip."
   type        = string
   default     = null
+  sensitive   = true
 }
 
 variable "node_instance_type" {
@@ -63,4 +64,45 @@ variable "node_max_size" {
   description = "Maximum number of EKS nodes"
   type        = number
   default     = 3
+}
+
+variable "node_volume_size" {
+  description = "Root EBS volume size (GB) for EKS nodes"
+  type        = number
+  default     = 20
+}
+
+variable "node_capacity_type" {
+  description = "EKS node group capacity type. SPOT cuts EC2 cost ~60-70% with interruption risk, a non-issue for a disposable lab; use ON_DEMAND if interruptions are unacceptable."
+  type        = string
+  default     = "SPOT"
+
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.node_capacity_type)
+    error_message = "node_capacity_type must be either \"ON_DEMAND\" or \"SPOT\"."
+  }
+}
+
+variable "log_retention_days" {
+  description = "CloudWatch Logs retention period (in days) for the EKS cluster log group"
+  type        = number
+  default     = 7
+}
+
+variable "vpc_cni_addon_version" {
+  description = "Version of the vpc-cni EKS add-on to install. Null resolves to the latest version compatible with cluster_version at apply time."
+  type        = string
+  default     = null
+}
+
+variable "kube_proxy_addon_version" {
+  description = "Version of the kube-proxy EKS add-on to install. Null resolves to the latest version compatible with cluster_version at apply time."
+  type        = string
+  default     = null
+}
+
+variable "coredns_addon_version" {
+  description = "Version of the coredns EKS add-on to install. Null resolves to the latest version compatible with cluster_version at apply time."
+  type        = string
+  default     = null
 }

@@ -1,18 +1,12 @@
-# Discover available AZs in the current region and use the first 2.
+# Discover available AZs in the current region and use the first var.az_count.
 # Filters to only "available" state to exclude opted-out or restricted zones.
 data "aws_availability_zones" "available" {
   state = "available"
 }
 
 locals {
-  availability_zones = slice(data.aws_availability_zones.available.names, 0, 2)
+  availability_zones = slice(data.aws_availability_zones.available.names, 0, var.az_count)
   az_count           = length(local.availability_zones)
-
-  common_tags = {
-    Project     = var.project
-    Environment = var.environment
-    ManagedBy   = "terraform"
-  }
 }
 
 # -----------------------------------------------------------------------
@@ -24,9 +18,9 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
   enable_dns_hostnames = true
 
-  tags = merge(local.common_tags, {
+  tags = {
     Name = "${var.project}-${var.environment}"
-  })
+  }
 }
 
 # -----------------------------------------------------------------------
@@ -44,7 +38,6 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = false
 
   tags = merge(
-    local.common_tags,
     {
       Name                     = "${var.project}-${var.environment}-public-${count.index + 1}"
       "kubernetes.io/role/elb" = "1"
@@ -61,7 +54,6 @@ resource "aws_subnet" "private" {
   availability_zone = local.availability_zones[count.index]
 
   tags = merge(
-    local.common_tags,
     {
       Name                              = "${var.project}-${var.environment}-private-${count.index + 1}"
       "kubernetes.io/role/internal-elb" = "1"
@@ -77,9 +69,9 @@ resource "aws_subnet" "private" {
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
-  tags = merge(local.common_tags, {
+  tags = {
     Name = "${var.project}-${var.environment}"
-  })
+  }
 }
 
 # -----------------------------------------------------------------------
@@ -93,9 +85,9 @@ resource "aws_eip" "nat" {
   count  = var.enable_nat_gateway_per_az ? local.az_count : 1
   domain = "vpc"
 
-  tags = merge(local.common_tags, {
+  tags = {
     Name = "${var.project}-${var.environment}-nat-${count.index + 1}"
-  })
+  }
 }
 
 resource "aws_nat_gateway" "main" {
@@ -103,9 +95,9 @@ resource "aws_nat_gateway" "main" {
   allocation_id = aws_eip.nat[count.index].id
   subnet_id     = aws_subnet.public[count.index].id
 
-  tags = merge(local.common_tags, {
+  tags = {
     Name = "${var.project}-${var.environment}-${count.index + 1}"
-  })
+  }
 
   depends_on = [aws_internet_gateway.main]
 }
@@ -122,9 +114,9 @@ resource "aws_route_table" "public" {
     gateway_id = aws_internet_gateway.main.id
   }
 
-  tags = merge(local.common_tags, {
+  tags = {
     Name = "${var.project}-${var.environment}-public"
-  })
+  }
 }
 
 resource "aws_route_table_association" "public" {
@@ -145,9 +137,9 @@ resource "aws_route_table" "private" {
     nat_gateway_id = var.enable_nat_gateway_per_az ? aws_nat_gateway.main[count.index].id : aws_nat_gateway.main[0].id
   }
 
-  tags = merge(local.common_tags, {
+  tags = {
     Name = "${var.project}-${var.environment}-private-${count.index + 1}"
-  })
+  }
 }
 
 resource "aws_route_table_association" "private" {
@@ -163,9 +155,7 @@ resource "aws_route_table_association" "private" {
 resource "aws_cloudwatch_log_group" "flow_logs" {
   count             = var.enable_flow_logs ? 1 : 0
   name              = "/aws/vpc/${var.project}-${var.environment}/flow-logs"
-  retention_in_days = 7
-
-  tags = local.common_tags
+  retention_in_days = var.log_retention_days
 }
 
 resource "aws_flow_log" "main" {
@@ -174,6 +164,4 @@ resource "aws_flow_log" "main" {
   traffic_type    = "ALL"
   iam_role_arn    = aws_iam_role.flow_logs[0].arn
   log_destination = aws_cloudwatch_log_group.flow_logs[0].arn
-
-  tags = local.common_tags
 }

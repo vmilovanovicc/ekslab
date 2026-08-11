@@ -46,14 +46,26 @@ variable "enable_flow_logs" {
   default     = false
 }
 
+variable "az_count" {
+  description = "Number of availability zones to spread subnets across"
+  type        = number
+  default     = 2
+}
+
+variable "log_retention_days" {
+  description = "CloudWatch Logs retention period (in days), applied to VPC Flow Logs and the EKS cluster log group"
+  type        = number
+  default     = 7
+}
+
 # -----------------------------------------------------------------------
 # EKS
 # -----------------------------------------------------------------------
 
 variable "cluster_name" {
-  description = "EKS cluster name"
+  description = "EKS cluster name. Defaults to \"<project>-<environment>\" when null, keeping it in sync with the rest of the resource naming."
   type        = string
-  default     = "ekslab-lab"
+  default     = null
 }
 
 variable "cluster_version" {
@@ -119,6 +131,41 @@ variable "node_max_size" {
   default     = 3
 }
 
+variable "node_volume_size" {
+  description = "Root EBS volume size (GB) for EKS nodes"
+  type        = number
+  default     = 20
+}
+
+variable "node_capacity_type" {
+  description = "EKS node group capacity type. SPOT cuts EC2 cost ~60-70% with interruption risk, a non-issue for a disposable lab; use ON_DEMAND if interruptions are unacceptable."
+  type        = string
+  default     = "SPOT"
+
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.node_capacity_type)
+    error_message = "node_capacity_type must be either \"ON_DEMAND\" or \"SPOT\"."
+  }
+}
+
+variable "vpc_cni_addon_version" {
+  description = "Version of the vpc-cni EKS add-on to install. Null resolves to the latest version compatible with cluster_version at apply time."
+  type        = string
+  default     = null
+}
+
+variable "kube_proxy_addon_version" {
+  description = "Version of the kube-proxy EKS add-on to install. Null resolves to the latest version compatible with cluster_version at apply time."
+  type        = string
+  default     = null
+}
+
+variable "coredns_addon_version" {
+  description = "Version of the coredns EKS add-on to install. Null resolves to the latest version compatible with cluster_version at apply time."
+  type        = string
+  default     = null
+}
+
 # -----------------------------------------------------------------------
 # Cost Guard
 # -----------------------------------------------------------------------
@@ -139,6 +186,7 @@ variable "budget_notification_emails" {
   description = "Email addresses notified when the budget threshold is exceeded. Required when enable_budget_alarm is true."
   type        = list(string)
   default     = []
+  sensitive   = true
 
   validation {
     condition     = !var.enable_budget_alarm || length(var.budget_notification_emails) > 0

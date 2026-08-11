@@ -9,9 +9,9 @@ resource "aws_security_group" "cluster" {
   description = "EKS control plane security group"
   vpc_id      = var.vpc_id
 
-  tags = merge(local.common_tags, {
+  tags = {
     Name = "${var.project}-${var.environment}-eks-cluster"
-  })
+  }
 }
 
 # Allow control plane to communicate with nodes (kubelet, logs, metrics).
@@ -57,10 +57,10 @@ resource "aws_security_group" "node" {
   description = "EKS worker node security group"
   vpc_id      = var.vpc_id
 
-  tags = merge(local.common_tags, {
+  tags = {
     Name                                        = "${var.project}-${var.environment}-eks-node"
     "kubernetes.io/cluster/${var.cluster_name}" = "owned"
-  })
+  }
 }
 
 # Nodes must communicate with each other (pod-to-pod traffic).

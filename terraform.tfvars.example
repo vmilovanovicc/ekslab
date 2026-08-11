@@ -5,7 +5,10 @@ aws_region = "us-east-2"
 
 project     = "ekslab"
 environment = "dev"
-cluster_name = "galaxy"
+
+# Optional: EKS cluster name. Defaults to "<project>-<environment>" when unset,
+# uncomment only if you need a name that doesn't follow that convention.
+# cluster_name = "galaxy"
 
 vpc_cidr = "10.0.0.0/16"
 
@@ -13,12 +16,23 @@ vpc_cidr = "10.0.0.0/16"
 enable_nat_gateway_per_az = false
 enable_flow_logs          = false
 
-cluster_version = "1.35"
+cluster_version = "1.36"
 
 node_instance_type = "t3.medium"
 node_desired_size  = 1
 node_min_size      = 1
 node_max_size      = 3
+
+# Optional tuning knobs, defaults shown below.
+# az_count            = 2
+# log_retention_days  = 7
+# node_volume_size    = 20
+# node_capacity_type  = "SPOT" # or "ON_DEMAND" if interruptions are unacceptable
+
+# Optional: pin EKS add-on versions instead of resolving the latest at apply time.
+# vpc_cni_addon_version    = "v1.19.0-eksbuild.1"
+# kube_proxy_addon_version = "v1.31.0-eksbuild.2"
+# coredns_addon_version    = "v1.11.3-eksbuild.1"
 
 # Optional: IAM principal for permanent local kubectl access.
 # If omitted, only the identity that ran terraform apply gets cluster admin (via bootstrap).

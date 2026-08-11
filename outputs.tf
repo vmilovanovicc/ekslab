@@ -41,6 +41,11 @@ output "kubeconfig_command" {
   value       = module.eks.kubeconfig_command
 }
 
+output "secrets_kms_key_arn" {
+  description = "ARN of the KMS key used for Kubernetes Secrets envelope encryption"
+  value       = module.eks.secrets_kms_key_arn
+}
+
 # -----------------------------------------------------------------------
 # Cost Guard
 # -----------------------------------------------------------------------

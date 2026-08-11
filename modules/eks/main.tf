@@ -14,14 +14,27 @@ locals {
 }
 
 # -----------------------------------------------------------------------
+# Secrets Encryption (KMS)
+# -----------------------------------------------------------------------
+
+resource "aws_kms_key" "eks_secrets" {
+  description             = "Envelope encryption key for ${var.cluster_name} Kubernetes Secrets"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+}
+
+resource "aws_kms_alias" "eks_secrets" {
+  name          = "alias/${var.project}-${var.environment}-eks-secrets"
+  target_key_id = aws_kms_key.eks_secrets.key_id
+}
+
+# -----------------------------------------------------------------------
 # CloudWatch Log Group
 # -----------------------------------------------------------------------
 
 resource "aws_cloudwatch_log_group" "cluster" {
   name              = "/aws/eks/${var.cluster_name}/cluster"
-  retention_in_days = 7
-
-  tags = local.common_tags
+  retention_in_days = var.log_retention_days
 }
 
 # -----------------------------------------------------------------------
@@ -33,7 +46,14 @@ resource "aws_eks_cluster" "main" {
   version  = var.cluster_version
   role_arn = aws_iam_role.cluster.arn
 
-  enabled_cluster_log_types = ["api", "audit", "authenticator"]
+  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+
+  encryption_config {
+    provider {
+      key_arn = aws_kms_key.eks_secrets.arn
+    }
+    resources = ["secrets"]
+  }
 
   vpc_config {
     subnet_ids              = var.private_subnet_ids
@@ -52,6 +72,7 @@ resource "aws_eks_cluster" "main" {
 
   depends_on = [
     aws_iam_role_policy_attachment.cluster_policy,
+    aws_iam_role_policy.cluster_kms,
     aws_cloudwatch_log_group.cluster,
   ]
 
@@ -60,8 +81,6 @@ resource "aws_eks_cluster" "main" {
     update = "30m"
     delete = "30m"
   }
-
-  tags = local.common_tags
 }
 
 # -----------------------------------------------------------------------
@@ -77,8 +96,6 @@ resource "aws_eks_access_entry" "admin" {
   cluster_name  = aws_eks_cluster.main.name
   principal_arn = var.admin_principal_arn
   type          = "STANDARD"
-
-  tags = local.common_tags
 }
 
 resource "aws_eks_access_policy_association" "admin" {
@@ -112,7 +129,7 @@ resource "aws_launch_template" "node" {
     device_name = "/dev/xvda"
 
     ebs {
-      volume_size           = 20
+      volume_size           = var.node_volume_size
       volume_type           = "gp3"
       encrypted             = true
       kms_key_id            = data.aws_kms_key.ebs.arn
@@ -132,8 +149,6 @@ resource "aws_launch_template" "node" {
     tags          = local.common_tags
   }
 
-  tags = local.common_tags
-
   lifecycle {
     create_before_destroy = true
   }
@@ -149,6 +164,8 @@ resource "aws_eks_node_group" "default" {
   node_role_arn   = aws_iam_role.node.arn
   subnet_ids      = var.private_subnet_ids
   instance_types  = [var.node_instance_type]
+  ami_type        = "AL2023_x86_64_STANDARD"
+  capacity_type   = var.node_capacity_type
 
   scaling_config {
     desired_size = var.node_desired_size
@@ -171,17 +188,38 @@ resource "aws_eks_node_group" "default" {
     update = "30m"
     delete = "30m"
   }
-
-  tags = local.common_tags
 }
 
 # -----------------------------------------------------------------------
 # Add-ons
+#
+# addon_version defaults to the latest version compatible with
+# cluster_version (resolved via data.aws_eks_addon_version) unless pinned
+# explicitly via the *_addon_version variables.
 # -----------------------------------------------------------------------
+
+data "aws_eks_addon_version" "vpc_cni" {
+  addon_name         = "vpc-cni"
+  kubernetes_version = aws_eks_cluster.main.version
+  most_recent        = true
+}
+
+data "aws_eks_addon_version" "kube_proxy" {
+  addon_name         = "kube-proxy"
+  kubernetes_version = aws_eks_cluster.main.version
+  most_recent        = true
+}
+
+data "aws_eks_addon_version" "coredns" {
+  addon_name         = "coredns"
+  kubernetes_version = aws_eks_cluster.main.version
+  most_recent        = true
+}
 
 resource "aws_eks_addon" "vpc_cni" {
   cluster_name             = aws_eks_cluster.main.name
   addon_name               = "vpc-cni"
+  addon_version            = coalesce(var.vpc_cni_addon_version, data.aws_eks_addon_version.vpc_cni.version)
   service_account_role_arn = aws_iam_role.vpc_cni.arn
 
   configuration_values = jsonencode({
@@ -194,22 +232,18 @@ resource "aws_eks_addon" "vpc_cni" {
   depends_on = [
     aws_iam_role_policy_attachment.vpc_cni_policy,
   ]
-
-  tags = local.common_tags
 }
 
 resource "aws_eks_addon" "kube_proxy" {
-  cluster_name = aws_eks_cluster.main.name
-  addon_name   = "kube-proxy"
-
-  tags = local.common_tags
+  cluster_name  = aws_eks_cluster.main.name
+  addon_name    = "kube-proxy"
+  addon_version = coalesce(var.kube_proxy_addon_version, data.aws_eks_addon_version.kube_proxy.version)
 }
 
 resource "aws_eks_addon" "coredns" {
-  cluster_name = aws_eks_cluster.main.name
-  addon_name   = "coredns"
+  cluster_name  = aws_eks_cluster.main.name
+  addon_name    = "coredns"
+  addon_version = coalesce(var.coredns_addon_version, data.aws_eks_addon_version.coredns.version)
 
   depends_on = [aws_eks_node_group.default]
-
-  tags = local.common_tags
 }
