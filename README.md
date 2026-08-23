@@ -20,7 +20,7 @@ It is not a production system, but it is built with a focus on security: no hard
 | Component | Details |
 |---|---|
 | **VPC** | 2 AZs (configurable via `az_count`), public + private subnets, single NAT Gateway (cost-optimized) |
-| **EKS Cluster** | Kubernetes 1.36 (default), API auth mode, public + private endpoint access, control plane logs (api/audit/authenticator/controllerManager/scheduler), Secrets envelope-encrypted with a dedicated KMS CMK |
+| **EKS Cluster** | Kubernetes 1.36 (default), API authentication mode, public + private endpoint access, control plane logs (api/audit/authenticator/controllerManager/scheduler), and an additional customer-managed KMS key for Kubernetes Secrets |
 | **Node Group** | Single managed node group ("default") in private subnets, AL2023 AMI, Spot capacity by default (configurable via `node_capacity_type`), IMDSv2 enforced, EBS encrypted with aws/ebs CMK |
 | **Add-ons** | vpc-cni (IRSA + prefix delegation), kube-proxy, coredns; version resolved to latest-compatible at apply time by default, pinnable via `*_addon_version` variables |
 | **IRSA** | OIDC provider provisioned; vpc-cni uses IRSA (node role has no CNI permissions) |
@@ -49,14 +49,13 @@ outputs.tf
 
 - **No static credentials**: GitHub Actions authenticates via OIDC. The plan and destroy jobs also check `github.actor == github.repository_owner`, and apply only runs after a successful plan, so only the repository owner can drive the pipeline.
 - **Restricted API endpoint**: EKS public API locked to specific CIDRs via `allowed_cidrs`. `0.0.0.0/0` and private ranges (10.x, 172.16-31.x, 192.168.x) are rejected by input validation.
-- **IMDSv2 enforced**: launch template requires token-based IMDS (hop limit 1), preventing SSRF-based credential theft from pods.
+- **IMDSv2 enforced**: the node launch template requires token-based instance metadata access and sets the response hop limit to 1. This limits ordinary pod access to instance metadata and reduces the risk of node-role credentials being obtained through SSRF or a compromised workload.
 - **IRSA for vpc-cni**: node role does not carry CNI permissions; the aws-node service account assumes a scoped IRSA role instead.
 - **Least-privilege node role**: nodes get `AmazonEKSWorkerNodePolicy` and `AmazonEC2ContainerRegistryPullOnly` (pull-only, not read-only).
 - **Encrypted node storage**: EBS volumes are gp3, encrypted with the aws/ebs managed key, deleted on termination.
-- **Secrets envelope encryption**: Kubernetes `Secret` objects are envelope-encrypted with a dedicated customer-managed KMS key (`encryption_config`), rotated automatically, not just AWS's default etcd storage encryption.
+- **Customer-managed encryption for Secrets**: EKS 1.28 and later already enable envelope encryption for Kubernetes API data by default. This lab additionally configures a dedicated customer-managed KMS key for Kubernetes `Secret` objects through `encryption_config`, providing explicit control over the key policy, rotation, audit trail, and lifecycle.
 - **Cluster logging**: api, audit, authenticator, controllerManager, and scheduler logs shipped to CloudWatch with 7-day retention (configurable via `log_retention_days`).
-- **Custom security groups**: explicit rules for control-plane-to-node and node-to-node traffic; no catch-all ingress on the cluster or node security groups (only unrestricted egress from nodes for image pulls and AWS API access).
-
+- **Restricted external ingress**: additional security groups define the required control-plane-to-node and node-to-node communication without allowing unrestricted ingress from the internet. Amazon EKS also creates and manages its default cluster security group for communication between cluster resources. Node egress remains unrestricted to support image pulls, AWS API access, and tools installed during experiments.
 ---
 
 ## Known Limitations
@@ -67,7 +66,9 @@ These are deliberate, accepted trade-offs, not bugs, kept here so anyone operati
 - **vpc-cni's IRSA role carries the full AWS-managed `AmazonEKS_CNI_Policy`**, which grants ENI/IP management actions that AWS's own policy can't scope down further. IRSA (not attaching CNI permissions to the node role) is already the correct mitigation and is in place; the wildcard shape is inherent to AWS's policy, not something this repo can tighten.
 - **Third-party GitHub Actions are pinned by mutable tag** (`@v5`, `@v6.1.0`, etc.), not by commit SHA. A compromised or re-tagged action would run with `id-token: write`, able to mint AWS credentials for `AWS_ROLE_ARN`. Low likelihood, high severity; pin by commit SHA if this repo is shared beyond a single trusted owner.
 - **The Lab TTL Check workflow only warns**, it does not auto-destroy. If a cluster runs past `TTL_WARNING_HOURS`, you get a GitHub issue, not an automatic teardown, you still have to trigger `destroy` yourself.
-
+- **The TTL workflow currently assumes `Project = ekslab`**: the Terraform `project` variable is configurable, but `.github/workflows/lab-ttl-check.yml` currently searches for clusters whose `Project` tag is exactly `ekslab`. If `project` is changed, update the workflow value as well or the TTL warning will not detect the cluster.
+- **The default Spot node group uses one instance type**: this keeps the configuration simple, but gives EC2 fewer Spot capacity pools to choose from and increases the chance of insufficient capacity or interruption. For a more resilient lab, change `node_instance_type` into a list and provide several similarly sized instance types.
+- **The customer-managed KMS key is not deleted immediately**: `terraform destroy` schedules the Secrets encryption key for deletion using a 7-day deletion window. This is an AWS safety mechanism, so the key can remain visible in a `PendingDeletion` state after the rest of the lab has been removed.
 ---
 
 ## Getting Started
@@ -171,10 +172,10 @@ Whoever ran `terraform apply` gets cluster admin automatically (`bootstrap_clust
 
 The workflow (`.github/workflows/deploy-eks-lab.yml`) is triggered manually via `workflow_dispatch` with an `action` input (`apply` or `destroy`).
 
-**Apply** runs as two sequential jobs, gated to the repository owner:
+**Apply** runs as two sequential jobs. The plan job is gated to the repository owner, and the apply job cannot run unless that plan job succeeds:
 
 1. **Plan**: inits, checks formatting, validates, plans, and uploads the plan artifact (1-day retention). Only runs when `action = apply` and the actor is the repository owner.
-2. **Apply**: downloads the plan artifact and applies it with `-auto-approve`. Runs after `plan` succeeds *and* the plan reported real changes, so it is skipped whenever `plan` is skipped, fails, or is a no-op.
+2. **Apply**: after the protected `aws-deploy` environment is approved, downloads and decrypts the saved plan artifact and applies that exact plan with `-auto-approve`. The job runs only after the plan job succeeds. A no-op plan may still reach the apply job, where Terraform completes without making changes.
 
 **Destroy** runs as a single job. It requires `action = destroy`, the actor to be the repository owner, and `confirm_destroy` typed as exactly `destroy`.
 
@@ -201,8 +202,7 @@ This lab is designed to minimize cost. Resources only incur charges while runnin
 | VPC Flow Logs | Off by default | Enable with `enable_flow_logs = true` |
 | CloudTrail | Not included | Excluded to avoid S3 storage accumulation |
 
-**Estimated total: ~$0.16-0.19/hour** while running (Spot node by default at the low end, on-demand at the high end). Destroy after each session.
-
+The default configuration is estimated to cost roughly $0.16–$0.20 per hour while the selected Kubernetes version remains in EKS standard support, before significant data transfer. Actual cost varies by region, Spot pricing, logging volume, public IPv4 usage, and network traffic.
 Cost-saving defaults that can be changed via variables:
 
 | Variable | Default | Notes |
@@ -214,5 +214,5 @@ Cost-saving defaults that can be changed via variables:
 
 ### Guardrails Against Forgotten Costs
 
-- **AWS Budget alarm** on by default (`enable_budget_alarm = true`), that emails `TF_VAR_BUDGET_NOTIFICATION_EMAILS` when actual spend crosses 80% of `budget_limit_usd` (default $20/month) or forecasted spend is on track to exceed 100%. Near-zero cost to run.
+- **Account-level AWS Budget alarm** enabled by default (`enable_budget_alarm = true`). It emails `TF_VAR_BUDGET_NOTIFICATION_EMAILS` when total eligible spending in the AWS account crosses 80% of `budget_limit_usd` (default: $20/month), or when forecasted account spending is expected to exceed 100%. The Budget is not filtered to resources created by this repository, so unrelated AWS spending can trigger it. It works best in a dedicated learning or sandbox account.
 - **Lab TTL Check workflow** (`.github/workflows/lab-ttl-check.yml`): runs daily, checks the age of any EKS cluster tagged `Project = ekslab`, and opens (or updates) a GitHub issue if it has been running longer than `TTL_WARNING_HOURS` (default 8h). It only warns, it does not destroy anything automatically, you still need to trigger `destroy` yourself.

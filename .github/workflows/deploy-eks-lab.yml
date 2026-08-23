@@ -283,7 +283,7 @@ jobs:
           retention-days: 1
 
       - name: Destroy Succeeded
-        run: echo "## EKS Lab destroyed. All ephemeral resources have been removed." >> $GITHUB_STEP_SUMMARY
+        run: echo "## Terraform destroy completed. Note that the customer-managed KMS key remains in PendingDeletion during its configured deletion window." >> $GITHUB_STEP_SUMMARY
 
       - name: Destroy Failed
         if: failure()
